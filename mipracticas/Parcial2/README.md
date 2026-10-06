@@ -41,18 +41,18 @@ Se implementa, sobre tres máquinas Ubuntu 22.04 LTS orquestadas con Vagrant/Vir
 
 ## 2. Evolución respecto a la Práctica 6
 
-| Aspecto               | Práctica 6 (base)                                                  | Práctica 7 / Parcial 2                                                                            |
-| :-------------------- | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------- |
-| Topología            | 2 VMs en la **misma** red host-only; el host alcanza a ambas | 3 VMs,**dos redes**: host-only pública + `intnet` interna; srv2 invisible para el cliente |
-| Hostnames             | `servidor1`, `servidor2`                                        | `srv1-2220335`, `srv2-2220335`, `cli-2220335`                                                |
-| Política de reenvío | `DEFAULT_FORWARD_POLICY="ACCEPT"`                                 | `ufw default deny routed` (`DROP`) + reglas `ufw route allow` mínimas                       |
-| DNAT                  | `80 → 192.168.50.2:80` sin filtro de destino                     | `21`, `50000:50010`, `2222→22`, todas con `-d 192.168.100.3`                              |
-| FTP                   | Se**bloqueaba** el 21                                         | **FTPS** con TLS obligatorio, rango pasivo fijo y `pasv_address`                           |
-| Certificados          | Autofirmado en Apache                                               | CA del curso + certificado de servidor (SAN con la IP pública)                                    |
-| SSH                   | Solo administración                                                | SFTP**chroot** publicado en `2222`; contraseña solo para ese usuario                      |
-| DNS                   | —                                                                  | **DoT** estricto con `systemd-resolved`                                                    |
-| Aprovisionamiento     | Scripts*inline* en el Vagrantfile                                 | Scripts en`scripts/` + configuraciones reales en `config/` (las mismas que se entregan)        |
-| Verificación         | Manual                                                              | Manual +`scripts/verify/cli_checks.sh` automatizado                                              |
+| Aspecto               | Práctica 6 (base)                                                | Práctica 7 / Parcial 2                                                                            |
+| :-------------------- | :---------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| Topología            | 2 VMs en la**misma** red host-only; el host alcanza a ambas | 3 VMs,**dos redes**: host-only pública + `intnet` interna; srv2 invisible para el cliente |
+| Hostnames             | `servidor1`, `servidor2`                                      | `srv1-2220335`, `srv2-2220335`, `cli-2220335`                                                |
+| Política de reenvío | `DEFAULT_FORWARD_POLICY="ACCEPT"`                               | `ufw default deny routed` (`DROP`) + reglas `ufw route allow` mínimas                       |
+| DNAT                  | `80 → 192.168.50.2:80` sin filtro de destino                   | `21`, `50000:50010`, `2222→22`, todas con `-d 192.168.100.3`                              |
+| FTP                   | Se**bloqueaba** el 21                                       | **FTPS** con TLS obligatorio, rango pasivo fijo y `pasv_address`                           |
+| Certificados          | Autofirmado en Apache                                             | CA del curso + certificado de servidor (SAN con la IP pública)                                    |
+| SSH                   | Solo administración                                              | SFTP**chroot** publicado en `2222`; contraseña solo para ese usuario                      |
+| DNS                   | —                                                                | **DoT** estricto con `systemd-resolved`                                                    |
+| Aprovisionamiento     | Scripts*inline* en el Vagrantfile                               | Scripts en`scripts/` + configuraciones reales en `config/` (las mismas que se entregan)        |
+| Verificación         | Manual                                                            | Manual +`scripts/verify/cli_checks.sh` automatizado                                              |
 
 Lo reutilizado de la Práctica 6: la técnica DNAT + `MASQUERADE` en `before.rules`, la habilitación de `ip_forward` y la regla preventiva de SSH antes de `ufw enable`.
 
