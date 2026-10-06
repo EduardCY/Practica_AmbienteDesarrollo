@@ -22,6 +22,24 @@ apt-get install -y -qq ufw netcat-openbsd >/dev/null
 log "Reiniciando UFW a valores de fabrica"
 ufw --force reset >/dev/null
 
+# --- Evitar colision de rutas DHCP con la red interna -----------------------
+cat <<'EOF' > /etc/netplan/99-fix-dhcp.yaml
+network:
+  version: 2
+  ethernets:
+    enp0s3:
+      dhcp4: true
+      dhcp4-overrides:
+        use-dns: false
+    eth0:
+      dhcp4: true
+      dhcp4-overrides:
+        use-dns: false
+EOF
+chmod 600 /etc/netplan/99-fix-dhcp.yaml
+netplan apply 2>/dev/null || true
+ip route del 192.168.50.3 via 10.0.2.2 dev eth0 2>/dev/null || true
+
 # --- Reenvio IP en el kernel (persistente) -----------------------------------
 log "Habilitando net.ipv4.ip_forward"
 echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-parcial2-forward.conf

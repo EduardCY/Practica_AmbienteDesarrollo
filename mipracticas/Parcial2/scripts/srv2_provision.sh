@@ -24,6 +24,24 @@ log "Instalando paquetes"
 apt-get update -y -qq
 apt-get install -y -qq vsftpd openssl openssh-server >/dev/null
 
+# --- Evitar colision de rutas DHCP con la red interna -----------------------
+cat <<'EOF' > /etc/netplan/99-fix-dhcp.yaml
+network:
+  version: 2
+  ethernets:
+    enp0s3:
+      dhcp4: true
+      dhcp4-overrides:
+        use-dns: false
+    eth0:
+      dhcp4: true
+      dhcp4-overrides:
+        use-dns: false
+EOF
+chmod 600 /etc/netplan/99-fix-dhcp.yaml
+netplan apply 2>/dev/null || true
+ip route del 192.168.50.3 via 10.0.2.2 dev eth0 2>/dev/null || true
+
 # -----------------------------------------------------------------------------
 # 1) PKI
 # -----------------------------------------------------------------------------
