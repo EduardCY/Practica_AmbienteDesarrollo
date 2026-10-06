@@ -61,11 +61,12 @@
 > **Objetivo:** Verificar que el clúster de máquinas virtuales esté activo y que los 15 controles pasen al 100%.
 
 ```powershell
-PS D:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Parcial2> cd D:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Parcial2
-PS D:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Parcial2> vagrant status
-PS D:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Parcial2> vagrant ssh cli -c "bash /vagrant/scripts/verify/cli_checks.sh"
+cd D:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Parcial2
+vagrant status
+vagrant ssh cli -c "bash /vagrant/scripts/verify/cli_checks.sh"
 ```
 
+- 
 - **Salida esperada:** `Resultado: 15 OK / 0 FAIL`.
 
 ### 0.2 Disposición de Terminales de Trabajo
@@ -90,11 +91,7 @@ Abrir 3 ventanas de terminal ordenadas en pantalla:
 
 ```bash
 sudo ufw status verbose
-sysctl net.
-
-
-
-ipv4.ip_forward
+sysctl net.ipv4.ip_forward
 ```
 
 - **Salida esperada:** `Default: deny (incoming), allow (outgoing), deny (routed)` y `net.ipv4.ip_forward = 1`.
@@ -221,8 +218,7 @@ sudo sed -n '/^\*nat/,/^COMMIT/p' /etc/ufw/before.rules
 > **Objetivo:** Constatar en tiempo real los contadores de paquetes y bytes de las cadenas PREROUTING y POSTROUTING para confirmar el procesamiento de tráfico.
 
 ```bash
-sudo 
-iptables -t nat -L -n -v
+sudo iptables -t nat -L -n -v
 ```
 
 - **Salida esperada:** Reglas activas para puertos 21, 50000:50010 y 2222 con contadores de paquetes en incremento.
@@ -289,14 +285,156 @@ pasv_address=192.168.100.3
 openssl x509 -in /etc/ssl/certs/servidor.crt -noout -subject -issuer -dates -fingerprint -sha256
 ```
 
-#### Paso 7.2: Conexión Gráfica en FileZilla y Transferencia
+#### Paso 7.2: Conexión Gráfica en FileZilla y Transferencia de Archivos
 
 > **Aplicación / Entorno:** 🪟 **FileZilla Client (Host Windows)**
-> **Objetivo:** Establecer sesión FTPS explícita, cotejar la huella SHA-256 y comprobar subida/descarga del archivo obligatorio `2220335.txt`.
+> **Objetivo:** Establecer una sesión FTPS explícita de extremo a extremo a través del firewall DNAT, realizar el cotejo criptográfico estricto de la huella digital SHA-256 del certificado X.509 para descartar ataques de intermediario (MITM), verificar el establecimiento de los canales de control y datos cifrados (TLS 1.3), y comprobar la subida y descarga del archivo con validación de integridad.
 
-1. Conectar a Host: `192.168.100.3`, Puerto: `21`, Cifrado: *"Requiere FTP explícito sobre TLS"*, Usuario: `ftp_2220335`, Clave: `Ftp2220335!`.
-2. Validar que la huella SHA-256 en pantalla coincida exactamente con la de `srv2`.
-3. Aceptar el certificado, listar el directorio, subir `2220335.txt` y descargarlo.
+---
+
+##### 1. Preparación Previa del Archivo en el Host Windows
+
+Antes de iniciar FileZilla, asegúrate de contar con el archivo de prueba en una ruta local accesible del host (por ejemplo, en el directorio del proyecto o en el Escritorio):
+
+```powershell
+# En PowerShell del Host (T4) dentro de la carpeta del parcial:
+"Parcial 2 - Servicios Telematicos - Estudiante Eduard Criollo Yule (2220335)" | Out-File -Encoding utf8 .\2220335.txt
+Get-FileHash .\2220335.txt -Algorithm SHA256
+```
+> **Nota:** Guarda el hash resultante para contrastarlo tras la transferencia y demostrar la integridad perfecta del archivo.
+
+---
+
+##### 2. Configuración en el Gestor de Sitios de FileZilla
+
+> **¿Por qué usar el Gestor de Sitios en lugar de la barra de Conexión Rápida?**  
+> La barra rápida utiliza valores predeterminados y no permite garantizar de forma persistente el modo de cifrado explícito ni la configuración del modo pasivo. El *Gestor de Sitios* (`Ctrl + S`) asegura que la negociación cumpla estrictamente con la rúbrica del parcial.
+
+1. Abre **FileZilla Client** en Windows.
+2. Ve al menú superior: **Archivo** → **Gestor de sitios...** (o presiona `Ctrl + S`).
+3. Haz clic en **Nuevo sitio** y nómbralo: `Parcial2-FTPS-srv1`.
+4. En la pestaña **General**, configura exactamente los siguientes parámetros:
+   - **Protocolo:** `FTP - Protocolo de transferencia de archivos`
+   - **Servidor:** `192.168.100.3` *(IP pública del firewall `srv1`, que redirige por DNAT hacia `srv2`)*
+   - **Puerto:** `21` *(Canal de control estándar)*
+   - **Cifrado:** Selecciona **`Requiere FTP explícito sobre TLS`** *(CRÍTICO: Nunca seleccionar "FTP plano no seguro")*
+   - **Modo de acceso:** `Normal`
+   - **Usuario:** `ftp_2220335`
+   - **Contraseña:** `Ftp2220335!`
+5. En la pestaña **Ajustes de transferencia**:
+   - **Modo de transferencia:** Selecciona **`Pasivo`** *(Obligatorio para atravesar la arquitectura con NAT/Firewall)*.
+6. Haz clic en el botón **Conectar**.
+
+---
+
+##### 3. Inspección del Diálogo de Alerta y Cotejo Criptográfico (Mitigación MITM)
+
+Inmediatamente tras enviar el comando `AUTH TLS`, FileZilla suspende la conexión y despliega una ventana emergente de seguridad:  
+**`El certificado del servidor es desconocido. Por favor, examine cuidadosamente el certificado para confiar en el servidor.`**
+
+###### ¿Por qué aparece esta alerta? (Pregunta frecuente de sustentación)
+El certificado de `srv2` fue emitido y firmado por una **Autoridad Certificadora (CA) privada del laboratorio** (`CA Servicios Telematicos 2220335`), la cual **no** forma parte del almacén público de certificados raíz de confianza de Microsoft Windows (*Windows Trusted Root Certification Authorities*). Por tanto, el sistema operativo no puede validar la confianza automáticamente y delega la decisión al operador humano.
+
+###### Procedimiento de Cotejo Criptográfico (Punto 7 de la rúbrica):
+1. **NO presiones "Aceptar" inmediatamente.**
+2. En la ventana emergente de FileZilla, localiza la sección **Detalles del certificado** y coteja minuciosamente los siguientes campos contra la salida obtenida en `srv2` ([Paso 7.1](#paso-71-consultar-huella-criptográfica-en-el-servidor)):
+
+| Campo en la Ventana de FileZilla | Valor Esperado en Pantalla | Correspondencia en Servidor (`openssl x509`) |
+| :--- | :--- | :--- |
+| **Nombre común (Sujeto / Host)** | `srv2-2220335` | `subject=... CN = srv2-2220335` |
+| **Organización / Unidad** | `UAO` / `Servicios Telematicos` | `O = UAO, OU = Servicios Telematicos` |
+| **Nombres alternativos (SAN)** | `IP: 192.168.100.3`, `DNS: srv2-2220335` | `subjectAltName=IP:192.168.100.3,DNS:srv2-...` |
+| **Emitido por (CA Emisora)** | `CA Servicios Telematicos 2220335` | `issuer=... CN = CA Servicios Telematicos 2220335` |
+| **Periodo de validez** | Fechas activas vigentes | `notBefore` / `notAfter` |
+| **Huella digital SHA-256 (Fingerprint)** | `E6:50:AB:1B:E5:17:...` *(O la huella de tu servidor)* | `sha256 Fingerprint=...` (**COINCIDENCIA EXACTA**) |
+
+3. **Justificación Teórica para el Docente:**  
+   > *"La coincidencia matemática exacta de la huella digital SHA-256 descarta la presencia de un ataque de intermediario (Man-in-the-Middle). Aunque el tráfico atraviesa el firewall `srv1` (DNAT), la huella demuestra que el certificado proviene intacto y sin suplantación desde el servidor final `srv2`."*
+4. Marca la casilla: **`Confiar siempre en este certificado en futuras sesiones`** (opcional, para evitar la alerta en reconexiones).
+5. Haz clic en el botón **Aceptar**.
+
+---
+
+##### 4. Interpretación del Registro de Sesión (Log Superior de FileZilla)
+
+Una vez aceptado el certificado, observa la consola de estado en la parte superior de FileZilla. Señala al docente la secuencia de negociación segura:
+
+```text
+Estado:      Conectando a 192.168.100.3:21...
+Estado:      Conexión establecida, esperando el mensaje de bienvenida...
+Respuesta:   220 (vsFTPd 3.0.5)
+Comando:     AUTH TLS
+Respuesta:   234 Proceed with negotiation.
+Estado:      Inicializando TLS...
+Estado:      Verificando certificado...
+Estado:      Conexión TLS establecida. Cifrado: TLSv1.3, Conjunto de cifrado: TLS_AES_256_GCM_SHA384
+Comando:     USER ftp_2220335
+Respuesta:   331 Please specify the password.
+Comando:     PASS **********
+Respuesta:   230 Login successful.
+Comando:     PBSZ 0
+Respuesta:   200 PBSZ set to 0.
+Comando:     PROT P
+Respuesta:   200 PROT now Private.
+Comando:     PASV
+Respuesta:   227 Entering Passive Mode (192,168,100,3,195,84).
+Estado:      Conectando a 192.168.100.3:50004...
+Comando:     MLSD
+Respuesta:   150 Here comes the directory listing.
+Respuesta:   226 Directory send OK.
+Estado:      Listado de directorios completado
+```
+
+> **Aspectos clave para sustentar:**
+> - `AUTH TLS` + `234`: Negociación explícita para elevar la conexión de texto plano a TLS.
+> - `PBSZ 0` (*Protection Buffer Size*) y `PROT P` (*Data Channel Protection Level = Private*): Obligan a que el canal de datos (puertos pasivos) también viaje cifrado con TLS.
+> - `227 Entering Passive Mode (192,168,100,3,X,Y)`: El servidor anuncia la IP pública `192.168.100.3` (gracias a `pasv_address`) y un puerto dinámico calculado como `(X * 256) + Y` (por ejemplo, `(195 * 256) + 84 = 50004`), el cual cae estrictamente dentro del rango `50000..50010` habilitado en UFW.
+
+---
+
+##### 5. Ejecución de la Transferencia de Archivos (Subida y Descarga)
+
+1. **Subida (*Upload*):**
+   - En el panel izquierdo (**Sitio local**), navega hasta el directorio donde creaste `2220335.txt`.
+   - En el panel derecho (**Sitio remoto**), confirma que estás posicionado en el directorio raíz del usuario (`/home/ftp_2220335`). Verás el archivo inicial `bienvenida.txt`.
+   - Arrastra el archivo `2220335.txt` desde el panel izquierdo al panel derecho (o clic derecho → **Subir**).
+   - Observa en el log:
+     ```text
+     Comando:     PASV
+     Respuesta:   227 Entering Passive Mode (192,168,100,3,195,85).
+     Comando:     STOR 2220335.txt
+     Respuesta:   150 Ok to send data.
+     Respuesta:   226 Transfer complete.
+     Estado:      Transferencia de archivo satisfactoria
+     ```
+2. **Descarga (*Download*):**
+   - En el panel izquierdo local, renombra el archivo local a `2220335_original.txt` para comprobar la recepción limpia.
+   - En el panel derecho remoto, haz clic derecho sobre `2220335.txt` → **Descargar**.
+   - Observa en el log:
+     ```text
+     Comando:     PASV
+     Respuesta:   227 Entering Passive Mode (192,168,100,3,195,86).
+     Comando:     RETR 2220335.txt
+     Respuesta:   150 Opening BINARY mode data connection for 2220335.txt.
+     Respuesta:   226 Transfer complete.
+     Estado:      Transferencia de archivo satisfactoria
+     ```
+3. **Validación de Integridad:**
+   - En la pestaña inferior **Transferencias satisfactorias**, comprueba que la transferencia figure con estado 100% exitoso y 0 transferencias fallidas.
+   - Puedes demostrar la integridad comparando el hash criptográfico del archivo descargado en PowerShell:
+     ```powershell
+     Get-FileHash .\2220335.txt -Algorithm SHA256
+     ```
+     El hash debe ser idéntico al calculado originalmente en `srv2` (`sha256sum /home/ftp_2220335/2220335.txt`).
+
+---
+
+##### 6. Evidencias Gráficas Asociadas en el Repositorio
+
+Para el informe final y la presentación, este procedimiento está respaldado por las capturas oficiales ubicadas en [images/](images/):
+- **[images/12_filezilla_certificado.png](images/12_filezilla_certificado.png):** Ventana de diálogo de certificado desconocido mostrando el emisor, sujeto y huella SHA-256 en FileZilla.
+- **[images/13_openssl_fingerprint.png](images/13_openssl_fingerprint.png):** Salida por terminal en `srv2` con la huella oficial contrastada.
+- **[images/14_filezilla_transferencia.png](images/14_filezilla_transferencia.png):** Interfaz principal de FileZilla con la sesión TLS activa, los paneles local y remoto sincronizados y el registro de transferencia exitosa.
 
 ---
 
@@ -315,23 +453,7 @@ openssl s_client -connect 192.168.100.3:21 -starttls ftp -CAfile ~/ca.crt </dev/
 
 ```text
 depth=1 CN = CA-ServiciosTelematicos-2026
-depth=0 CN = srv2-2220335, 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-IP = 192.168.100.3
+depth=0 CN = srv2-2220335, IP = 192.168.100.3
 Server certificate
 New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
 Verify return code: 0 (ok)
@@ -341,17 +463,129 @@ Verify return code: 0 (ok)
 
 ### Punto 9: Capturas Wireshark: FTP Plano vs FTPS Cifrado (0.2 Pts)
 
-#### Demostración Práctica en Wireshark
+#### Demostración Práctica Paso a Paso en Wireshark y Terminales
 
-> **Aplicación / Entorno:** 🪟 **Wireshark GUI (Host Windows)**
-> **Objetivo:** Evidenciar visualmente la exposición de credenciales y datos en FTP plano frente a la total confidencialidad en FTPS.
+> **Aplicación / Entorno:** 🪟 **Wireshark GUI (Host Windows)** + 💻 **Terminal 3 (`cli`)** + 🖧 **Terminal 2 (`srv2`)**
+> **Objetivo:** Demostrar empíricamente la vulnerabilidad crítica de FTP en texto plano (exposición de credenciales y datos ante ataques de interceptación) frente a la estricta confidencialidad que proporciona FTPS explícito con TLS 1.3 (canales de control y de datos cifrados).
 
-1. **FTP Plano (`captures/p09_ftp_plano.pcapng`):**
-   - Filtro: `ftp || ftp-data`.
-   - Aplicar *Follow TCP Stream* en `USER`: credenciales `ftp_2220335`/`Ftp2220335!` y contenido de archivo visibles en texto plano.
-2. **FTPS Cifrado (`captures/p09_ftps.pcapng`):**
-   - Filtro: `tcp.port == 21 || tcp.port in {50000..50010}`.
-   - Constatar: Comando `AUTH TLS`, respuesta `234` y registros subsiguientes categorizados como `Application Data` cifrados con TLS 1.3.
+---
+
+##### 1. Procedimiento de Captura: Sesión FTP en Plano (`p09_ftp_plano.pcapng`)
+
+###### Paso 1.1: Deshabilitar temporalmente TLS en el Servidor
+En **🖧 Terminal 2 (`srv2`)**, desactiva el requisito de cifrado en `vsftpd` utilizando el script auxiliar provisto en el repositorio:
+
+```bash
+sudo bash /vagrant/scripts/demo/ftps_tls.sh off
+```
+- **Salida esperada:** Mensaje `>> TLS DESHABILITADO (FTP plano) - SOLO para la captura del punto 9`, confirmando `ssl_enable=NO` y el reinicio automático del demonio `vsftpd`.
+
+###### Paso 1.2: Capturar tráfico y ejecutar la sesión en texto plano
+En **💻 Terminal 3 (`cli`)**, inicia la captura con `tshark` y transmite el archivo de prueba forzando el modo sin TLS:
+
+```bash
+# Iniciar captura en segundo plano escuchando la interfaz eth1 hacia el firewall
+sudo tshark -i eth1 -f "host 192.168.100.3" -w /vagrant/captures/p09_ftp_plano.pcapng -c 40 &
+PID_CAP=$!
+sleep 2
+
+# Ejecutar sesión FTP sin TLS subiendo 2220335.txt y listando el directorio
+lftp -e "set ftp:ssl-allow no; put /home/vagrant/2220335.txt; ls; bye" -u ftp_2220335,Ftps2220335! 192.168.100.3
+wait $PID_CAP
+```
+- **Resultado:** Se genera el archivo de captura [captures/p09_ftp_plano.pcapng](captures/p09_ftp_plano.pcapng) en la carpeta compartida, accesible inmediatamente desde Windows.
+
+---
+
+##### 2. Procedimiento de Captura: Sesión FTPS Cifrada (`p09_ftps.pcapng`)
+
+###### Paso 2.1: Rehabilitar TLS obligatorio en el Servidor
+En **🖧 Terminal 2 (`srv2`)**, restaura la seguridad estricta:
+
+```bash
+sudo bash /vagrant/scripts/demo/ftps_tls.sh on
+```
+- **Salida esperada:** Mensaje `>> TLS HABILITADO (FTPS explicito obligatorio)` con `ssl_enable=YES`, `force_local_logins_ssl=YES` y `force_local_data_ssl=YES`.
+
+###### Paso 2.2: Capturar tráfico y ejecutar la sesión segura
+En **💻 Terminal 3 (`cli`)**, captura la sesión FTPS protegida con TLS:
+
+```bash
+# Iniciar captura en segundo plano
+sudo tshark -i eth1 -f "host 192.168.100.3" -w /vagrant/captures/p09_ftps.pcapng -c 60 &
+PID_CAP=$!
+sleep 2
+
+# Ejecutar sesión FTPS (lftp negocia TLS automáticamente según ~/.lftprc)
+lftp -e "put /home/vagrant/2220335.txt; ls; bye" -u ftp_2220335,Ftps2220335! 192.168.100.3
+wait $PID_CAP
+```
+- **Resultado:** Se genera el archivo de captura [captures/p09_ftps.pcapng](captures/p09_ftps.pcapng).
+
+---
+
+##### 3. Análisis Forense y Demostración en Wireshark (Host Windows)
+
+Abre **Wireshark** en Windows para analizar las dos capturas guardadas en `mipracticas\Parcial2\captures\`:
+
+#### A. Análisis de la Captura Plana (`p09_ftp_plano.pcapng`)
+1. En Wireshark, abre el archivo `captures/p09_ftp_plano.pcapng`.
+2. En la barra de filtros de visualización superior, escribe:
+   ```text
+   ftp || ftp-data
+   ```
+3. **Qué observar en la lista de paquetes:**
+   - **Paquete con comando USER:** Se observa en texto ASCII claro: `Request: USER ftp_2220335`.
+   - **Paquete con comando PASS:** Se observa la contraseña en texto plano absoluto: `Request: PASS Ftps2220335!`.
+   - **Paquete con comando PASV:** El servidor responde `227 Entering Passive Mode (192,168,100,3,X,Y)`.
+   - **Paquete con comando STOR:** `Request: STOR 2220335.txt`.
+   - **Paquete FTP-DATA:** Paquetes sobre el puerto efímero transportando los bytes del archivo.
+4. **Demostración de impacto (Follow TCP Stream):**
+   - Haz clic derecho sobre el paquete del comando `USER` → **Follow** → **TCP Stream**.
+   - **Ventana emergente:** Señala al docente cómo todo el diálogo entre cliente y servidor aparece en texto legible (rojo para comandos del cliente, azul para respuestas del servidor), demostrando la **falta total de confidencialidad** y la exposición de credenciales ante sniffing.
+   - Cierra la ventana y haz clic derecho sobre cualquier paquete de protocolo `FTP-DATA` → **Follow** → **TCP Stream**.
+   - **Ventana emergente:** Señala que el contenido del archivo `2220335.txt` es 100% legible en texto claro.
+
+#### B. Análisis de la Captura Cifrada (`p09_ftps.pcapng`)
+1. En Wireshark, abre el archivo `captures/p09_ftps.pcapng`.
+2. En la barra de filtros de visualización, escribe:
+   ```text
+   tcp.port == 21 || tcp.port in {50000..50010}
+   ```
+3. **Qué observar en la lista de paquetes:**
+   - **Banner inicial:** `Response: 220 (vsFTPd 3.0.5)`.
+   - **Comando de elevación a TLS:** `Request: AUTH TLS` y respuesta del servidor `Response: 234 Proceed with negotiation.`.
+   - **Transición inmediata de protocolo:** A partir del siguiente paquete, el protocolo deja de ser `FTP` y pasa a ser **`TLSv1.3`** (o `TLSv1.2` en el `Client Hello`).
+   - **Handshake TLS:** Intercambio de claves Diffie-Hellman / ECDHE (`Server Hello`, `Change Cipher Spec`).
+   - **Cifrado del canal de control:** Todos los paquetes subsiguientes en el puerto 21 figuran como **`Application Data`**. Las credenciales `USER` y `PASS` nunca aparecen en texto claro.
+   - **Cifrado del canal de datos pasivo:** Al abrirse el puerto pasivo (ej. `50004`), ocurre un segundo handshake TLS y los paquetes de datos del archivo también se transmiten como **`Application Data`** gracias a las directivas `force_local_data_ssl=YES` y `PROT P`.
+4. **Demostración de impacto (Follow TCP Stream):**
+   - Haz clic derecho sobre cualquier paquete clasificado como `Application Data` → **Follow** → **TCP Stream**.
+   - **Ventana emergente:** Muestra al evaluador que únicamente son visibles el banner `220` y el comando `AUTH TLS`. A partir de ahí, todo el flujo es una secuencia de **bytes binarios cifrados e ininteligibles**, demostrando confidencialidad e integridad criptográfica total.
+
+---
+
+##### 4. Tabla Comparativa Resumen para la Sustentación
+
+| Característica / Parámetro | FTP Plano (`p09_ftp_plano.pcapng`) | FTPS Cifrado (`p09_ftps.pcapng`) |
+| :--- | :--- | :--- |
+| **Protocolo en Wireshark** | `FTP` y `FTP-DATA` | `FTP` inicial → `TLSv1.3 (Application Data)` |
+| **Credenciales (`USER`/`PASS`)** | Texto plano visible (`Ftps2220335!`) | Cifradas en registro TLS (*Application Data*) |
+| **Comando de elevación** | Ninguno (plano nativo) | `AUTH TLS` seguido de respuesta `234` |
+| **Canal de Datos (Pasivo)** | Texto plano sin cifrar | Handshake TLS independiente + *Application Data* |
+| **Confidencialidad** | Nula (vulnerable a *sniffing* / *MITM*) | Total (cifrado simétrico AES-256-GCM / TLS 1.3) |
+| **Integridad** | Ninguna verificación criptográfica | Garantizada por HMAC / Poly1305 / GCM de TLS |
+
+---
+
+##### 5. Preguntas Frecuentes del Docente en este Punto
+
+1. **¿Por qué el banner inicial `220` y `AUTH TLS` viajan en claro en FTPS?**  
+   *Respuesta:* Porque estamos utilizando **FTPS Explícito** (RFC 4217) sobre el puerto 21. La sesión inicia como TCP estándar para permitir compatibilidad y luego el cliente solicita explícitamente elevar el socket a TLS mediante el comando `AUTH TLS` (análogo a `STARTTLS` en SMTP o IMAP).
+2. **¿Por qué en FTPS se observan dos handshakes TLS distintos?**  
+   *Respuesta:* Debido a la arquitectura de dos canales del protocolo FTP. El primer handshake protege el canal de control (puerto 21: comandos y autenticación), y el segundo handshake protege de forma independiente el canal de datos pasivo (puerto 50000..50010: listados de directorios y contenido de archivos transferidos).
+3. **¿Por qué con TLS 1.3 no se puede ver el certificado del servidor en Wireshark?**  
+   *Respuesta:* En TLS 1.2 el mensaje `Certificate` viajaba en claro tras el `Server Hello`. En TLS 1.3, las claves simétricas efímeras se derivan inmediatamente después del intercambio Diffie-Hellman en el `Server Hello`, por lo que el certificado del servidor y todos los mensajes posteriores viajan completamente cifrados.
 
 ---
 
@@ -375,7 +609,7 @@ Verify return code: 0 (ok)
 > **Objetivo:** Comprobar la parametrización de resolvers con SNI (`IP#nombre`) y la activación del modo estricto `DNSOverTLS=yes`.
 
 ```bash
-vagrant@cli-2220335:~$ grep -vE '^\s*(#|$)' /etc/systemd/resolved.conf
+grep -vE '^\s*(#|$)' /etc/systemd/resolved.conf
 ```
 
 - **Salida esperada:**
@@ -394,8 +628,8 @@ DNSSEC=no
 > **Objetivo:** Confirmar que `/etc/resolv.conf` sea un enlace simbólico hacia el stub resolver seguro de systemd (`127.0.0.53`).
 
 ```bash
-vagrant@cli-2220335:~$ ls -l /etc/resolv.conf
-vagrant@cli-2220335:~$ grep nameserver /etc/resolv.conf
+ls -l /etc/resolv.conf
+grep nameserver /etc/resolv.conf
 ```
 
 - **Salida esperada:** `/etc/resolv.conf -> /run/systemd/resolve/stub-resolv.conf` con `nameserver 127.0.0.53`.
@@ -410,7 +644,7 @@ vagrant@cli-2220335:~$ grep nameserver /etc/resolv.conf
 > **Objetivo:** Verificar mediante `resolvectl status` que el indicador de protocolo `+DNSOverTLS` esté habilitado a nivel global.
 
 ```bash
-vagrant@cli-2220335:~$ resolvectl status
+resolvectl status
 ```
 
 - **Salida esperada:** En sección Global: `Protocols: -LLMNR -mDNS +DNSOverTLS DNSSEC=no/unsupported` y servidores activos apuntando a Cloudflare.
@@ -425,9 +659,9 @@ vagrant@cli-2220335:~$ resolvectl status
 > **Objetivo:** Comprobar la resolución exitosa de los tres dominios solicitados mediante el resolvedor seguro del sistema.
 
 ```bash
-vagrant@cli-2220335:~$ resolvectl query uao.edu.co
-vagrant@cli-2220335:~$ resolvectl query google.com
-vagrant@cli-2220335:~$ resolvectl query wikipedia.org
+resolvectl query uao.edu.co
+resolvectl query google.com
+resolvectl query wikipedia.org
 ```
 
 #### Paso 12.2: Demostración con dig Estándar vs dig Forzando Servidor Externo
@@ -436,8 +670,8 @@ vagrant@cli-2220335:~$ resolvectl query wikipedia.org
 > **Objetivo:** Evidenciar que `dig` estándar utiliza el stub seguro (`127.0.0.53#53`) por DoT, mientras que forzar `@8.8.8.8` envía tráfico en texto plano por UDP 53.
 
 ```bash
-vagrant@cli-2220335:~$ dig wikipedia.org | grep -E 'SERVER:|ANSWER SECTION' -A 2
-vagrant@cli-2220335:~$ dig @8.8.8.8 wikipedia.org | grep -E 'SERVER:|ANSWER SECTION' -A 2
+dig wikipedia.org | grep -E 'SERVER:|ANSWER SECTION' -A 2
+dig @8.8.8.8 wikipedia.org | grep -E 'SERVER:|ANSWER SECTION' -A 2
 ```
 
 - **Salida esperada:**
@@ -470,7 +704,7 @@ vagrant@cli-2220335:~$ dig @8.8.8.8 wikipedia.org | grep -E 'SERVER:|ANSWER SECT
 > **Objetivo:** Simular un bloqueo perimetral o censura del puerto 853/tcp.
 
 ```bash
-vagrant@cli-2220335:~$ sudo iptables -I OUTPUT -p tcp --dport 853 -j REJECT
+sudo iptables -I OUTPUT -p tcp --dport 853 -j REJECT
 ```
 
 #### Paso 14.2: Comprobar Resistencia a la Degradación en Modo Estricto (`yes`)
@@ -479,8 +713,8 @@ vagrant@cli-2220335:~$ sudo iptables -I OUTPUT -p tcp --dport 853 -j REJECT
 > **Objetivo:** Demostrar que con `DNSOverTLS=yes` la resolución se bloquea para impedir degradaciones hacia texto claro (*anti-downgrade*).
 
 ```bash
-vagrant@cli-2220335:~$ sudo bash /vagrant/scripts/demo/dot_mode.sh yes
-vagrant@cli-2220335:~$ resolvectl query uao.edu.co
+sudo bash /vagrant/scripts/demo/dot_mode.sh yes
+resolvectl query uao.edu.co
 ```
 
 - **Salida esperada:** Fallo en la resolución de nombres.
@@ -491,8 +725,8 @@ vagrant@cli-2220335:~$ resolvectl query uao.edu.co
 > **Objetivo:** Demostrar que el modo `opportunistic` cae a texto plano por UDP 53 cuando el puerto 853 es bloqueado.
 
 ```bash
-vagrant@cli-2220335:~$ sudo bash /vagrant/scripts/demo/dot_mode.sh opportunistic
-vagrant@cli-2220335:~$ resolvectl query uao.edu.co
+sudo bash /vagrant/scripts/demo/dot_mode.sh opportunistic
+resolvectl query uao.edu.co
 ```
 
 - **Salida esperada:** Resuelve exitosamente pero en texto plano sin cifrado.
@@ -503,8 +737,8 @@ vagrant@cli-2220335:~$ resolvectl query uao.edu.co
 > **Objetivo:** Eliminar la regla de bloqueo de iptables y reactivar el modo DoT estricto.
 
 ```bash
-vagrant@cli-2220335:~$ sudo iptables -D OUTPUT -p tcp --dport 853 -j REJECT
-vagrant@cli-2220335:~$ sudo bash /vagrant/scripts/demo/dot_mode.sh yes
+sudo iptables -D OUTPUT -p tcp --dport 853 -j REJECT
+sudo bash /vagrant/scripts/demo/dot_mode.sh yes
 ```
 
 ---
@@ -528,7 +762,7 @@ vagrant@cli-2220335:~$ sudo bash /vagrant/scripts/demo/dot_mode.sh yes
 > **Objetivo:** Comprobar la directiva `Match User` que confina al usuario en chroot y fuerza el subsistema en memoria `internal-sftp`.
 
 ```bash
-vagrant@srv2-2220335:~$ sudo sed -n '/^Match User sftp_2220335/,$p' /etc/ssh/sshd_config
+sudo sed -n '/^Match User sftp_2220335/,$p' /etc/ssh/sshd_config
 ```
 
 - **Salida esperada:**
@@ -548,8 +782,8 @@ Match User sftp_2220335
 > **Objetivo:** Verificar que la raíz del chroot pertenezca a `root:root` (exigencia de seguridad de OpenSSH) y el subdirectorio `archivos/` al usuario.
 
 ```bash
-vagrant@srv2-2220335:~$ ls -ld /home/sftp_2220335
-vagrant@srv2-2220335:~$ ls -ld /home/sftp_2220335/archivos
+ls -ld /home/sftp_2220335
+ls -ld /home/sftp_2220335/archivos
 ```
 
 - **Salida esperada:** `/home/sftp_2220335` con `drwxr-xr-x` de `root:root` y `archivos/` perteneciente a `sftp_2220335:sftp_2220335`.
@@ -560,7 +794,7 @@ vagrant@srv2-2220335:~$ ls -ld /home/sftp_2220335/archivos
 > **Objetivo:** Demostrar que el usuario SFTP no puede abrir terminal de comandos ni interactuar con el sistema operativo.
 
 ```bash
-vagrant@cli-2220335:~$ ssh -p 2222 sftp_2220335@192.168.100.3
+ssh -p 2222 sftp_2220335@192.168.100.3
 ```
 
 - **Salida esperada:** `This service allows sftp connections only.` y desconexión inmediata.
@@ -575,7 +809,7 @@ vagrant@cli-2220335:~$ ssh -p 2222 sftp_2220335@192.168.100.3
 > **Objetivo:** Deshabilitar temporalmente el paso de tráfico FORWARD hacia el puerto 22 de `srv2`.
 
 ```bash
-vagrant@srv1-2220335:~$ sudo ufw route delete allow proto tcp from any to 192.168.50.2 port 22
+sudo ufw route delete allow proto tcp from any to 192.168.50.2 port 22
 ```
 
 #### Paso 16.2: Constatar Bloqueo en el Cliente
@@ -584,7 +818,7 @@ vagrant@srv1-2220335:~$ sudo ufw route delete allow proto tcp from any to 192.16
 > **Objetivo:** Demostrar que el firewall bloquea el acceso externo al puerto 2222.
 
 ```bash
-vagrant@cli-2220335:~$ sftp -o ConnectTimeout=5 -P 2222 sftp_2220335@192.168.100.3
+sftp -o ConnectTimeout=5 -P 2222 sftp_2220335@192.168.100.3
 ```
 
 - **Salida esperada:** `ssh: connect to host 192.168.100.3 port 2222: Connection timed out`.
@@ -595,7 +829,7 @@ vagrant@cli-2220335:~$ sftp -o ConnectTimeout=5 -P 2222 sftp_2220335@192.168.100
 > **Objetivo:** Reactivar el paso de tráfico FORWARD para SFTP.
 
 ```bash
-vagrant@srv1-2220335:~$ sudo ufw route allow proto tcp from any to 192.168.50.2 port 22 comment 'SFTP 2222 -> srv2:22'
+sudo ufw route allow proto tcp from any to 192.168.50.2 port 22 comment 'SFTP 2222 -> srv2:22'
 ```
 
 #### Paso 16.4: Constatar Acceso Inmediato
@@ -604,7 +838,7 @@ vagrant@srv1-2220335:~$ sudo ufw route allow proto tcp from any to 192.168.50.2 
 > **Objetivo:** Verificar que el cliente vuelve a conectarse inmediatamente.
 
 ```bash
-vagrant@cli-2220335:~$ sftp -P 2222 sftp_2220335@192.168.100.3
+sftp -P 2222 sftp_2220335@192.168.100.3
 ```
 
 ---
@@ -617,7 +851,7 @@ vagrant@cli-2220335:~$ sftp -P 2222 sftp_2220335@192.168.100.3
 > **Objetivo:** Obtener la huella Ed25519 oficial del servidor para validar la autenticidad en el modelo TOFU (*Trust On First Use*).
 
 ```bash
-vagrant@srv2-2220335:~$ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
 #### Paso 17.2: Iniciar Sesión y Transferir Archivos
@@ -626,19 +860,19 @@ vagrant@srv2-2220335:~$ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 > **Objetivo:** Interactuar con el subsistema SFTP, confirmar el enjaulamiento en la raíz `/` y realizar subida y descarga de archivos.
 
 ```bash
-vagrant@cli-2220335:~$ sftp -P 2222 sftp_2220335@192.168.100.3
+sftp -P 2222 sftp_2220335@192.168.100.3
 ```
 
 Dentro de la consola de SFTP:
 
 ```text
-sftp> pwd
+pwd
 Remote working directory: /
-sftp> cd archivos
-sftp> put 2220335_sftp.txt
-sftp> ls -la
-sftp> get 2220335_sftp.txt 2220335_descargado.txt
-sftp> bye
+cd archivos
+put 2220335_sftp.txt
+ls -la
+get 2220335_sftp.txt 2220335_descargado.txt
+bye
 ```
 
 ---
@@ -690,9 +924,9 @@ sftp> bye
 > **Objetivo:** Inspeccionar el estado del firewall, contadores NAT de iptables y logs de bloqueos.
 
 ```bash
-vagrant@srv1-2220335:~$ sudo ufw status verbose
-vagrant@srv1-2220335:~$ sudo iptables -t nat -L -n -v
-vagrant@srv1-2220335:~$ sudo tail -n 25 /var/log/ufw.log
+sudo ufw status verbose
+sudo iptables -t nat -L -n -v
+sudo tail -n 25 /var/log/ufw.log
 ```
 
 #### En Servidor 2 (Servidor Interno)
@@ -701,9 +935,9 @@ vagrant@srv1-2220335:~$ sudo tail -n 25 /var/log/ufw.log
 > **Objetivo:** Consultar el estado de los daemons vsftpd y sshd, y revisar logs de autenticación de usuarios.
 
 ```bash
-vagrant@srv2-2220335:~$ systemctl status vsftpd
-vagrant@srv2-2220335:~$ systemctl status ssh
-vagrant@srv2-2220335:~$ sudo tail -n 25 /var/log/auth.log
+systemctl status vsftpd
+systemctl status ssh
+sudo tail -n 25 /var/log/auth.log
 ```
 
 #### En Cliente de Pruebas
@@ -712,8 +946,8 @@ vagrant@srv2-2220335:~$ sudo tail -n 25 /var/log/auth.log
 > **Objetivo:** Consultar el estado de los resolvedores DoT y ejecutar la verificación automatizada integral.
 
 ```bash
-vagrant@cli-2220335:~$ resolvectl status
-vagrant@cli-2220335:~$ bash /vagrant/scripts/verify/cli_checks.sh
+resolvectl status
+bash /vagrant/scripts/verify/cli_checks.sh
 ```
 
 ### 4.2 Respuestas Rápidas a Preguntas Clave del Evaluador
