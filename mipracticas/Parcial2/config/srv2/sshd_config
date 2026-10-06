@@ -1,0 +1,51 @@
+# =============================================================================
+# /etc/ssh/sshd_config  -  srv2-2220335
+# Practica 7 / Segundo Parcial - Parte 3: SFTP con chroot
+#
+# Why sin "Include /etc/ssh/sshd_config.d/*.conf": en sshd gana el PRIMER valor
+# leido; un drop-in del sistema podria sobrescribir PasswordAuthentication.
+# Se deja un archivo unico y determinista.
+# =============================================================================
+
+Port 22
+AddressFamily inet
+ListenAddress 0.0.0.0
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+# --- Autenticacion ------------------------------------------------------------
+PermitRootLogin no
+PubkeyAuthentication yes
+# Por defecto solo llaves (usuario vagrant); la contraseña se habilita solo
+# para el usuario SFTP en el bloque Match.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+UsePAM yes
+MaxAuthTries 4
+LoginGraceTime 30
+
+# --- Endurecimiento general ---------------------------------------------------
+X11Forwarding no
+PrintMotd no
+AcceptEnv LANG LC_*
+LogLevel VERBOSE
+
+# Why internal-sftp: corre dentro del proceso sshd, no necesita binarios
+# dentro de la jaula chroot.
+Subsystem sftp internal-sftp
+
+# =============================================================================
+# Usuario exclusivo SFTP (Punto 15)
+# =============================================================================
+Match User sftp_2220335
+    ChrootDirectory /home/sftp_2220335
+    ForceCommand internal-sftp
+    PasswordAuthentication yes
+    AllowTcpForwarding no
+    AllowAgentForwarding no
+    PermitTunnel no
+    X11Forwarding no
+    PermitTTY no

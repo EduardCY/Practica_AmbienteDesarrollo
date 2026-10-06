@@ -1,0 +1,98 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# =============================================================================
+# Parcial 2 - Servicios Telematicos (2026-02)
+# Estudiante: Eduard Criollo Yule
+#
+# Topologia:
+#
+#   [Windows Host 192.168.100.1] ---+
+#                                   |  Red "publica" host-only 192.168.100.0/24
+#   [cli-CODIGO  192.168.100.10] ---+
+#                                   |
+#                         eth1 192.168.100.3 (IP publica)
+#                         [srv1-CODIGO]  UFW + DNAT
+#                         eth2 192.168.50.3
+#                                   |
+#                                   |  Red INTERNA VirtualBox (intnet) 192.168.50.0/24
+#                                   |  -> invisible para el host y para el cliente
+#                         eth1 192.168.50.2
+#                         [srv2-CODIGO]  vsftpd (FTPS) + OpenSSH (SFTP chroot)
+# =============================================================================
+
+CODIGO     = ENV.fetch("CODIGO", "2220335")
+IP_PUBLICA = "192.168.100.3"   # srv1 - IP que usa el cliente (<ip publica>)
+IP_SRV1_IN = "192.168.50.3"    # srv1 - lado interno
+IP_SRV2    = "192.168.50.2"    # srv2 - solo red interna
+IP_CLI     = "192.168.100.10"  # cliente Linux
+INTNET     = "intnet_parcial2_#{CODIGO}"
+
+# Credenciales SOLO de laboratorio. Pueden sobrescribirse con variables de
+# entorno antes de `vagrant up` (no reutilizar en entornos reales).
+FTP_USER  = "ftp_#{CODIGO}"
+FTP_PASS  = ENV.fetch("FTP_PASS",  "Ftps#{CODIGO}!")
+SFTP_USER = "sftp_#{CODIGO}"
+SFTP_PASS = ENV.fetch("SFTP_PASS", "Sftp#{CODIGO}!")
+
+COMMON_ENV = {
+  "CODIGO"     => CODIGO,
+  "IP_PUBLICA" => IP_PUBLICA,
+  "IP_SRV1_IN" => IP_SRV1_IN,
+  "IP_SRV2"    => IP_SRV2,
+  "IP_CLI"     => IP_CLI,
+  "FTP_USER"   => FTP_USER,
+  "FTP_PASS"   => FTP_PASS,
+  "SFTP_USER"  => SFTP_USER,
+  "SFTP_PASS"  => SFTP_PASS,
+}
+
+Vagrant.configure("2") do |config|
+  config.vm.box          = "bento/ubuntu-22.04"
+  config.vm.boot_timeout = 600
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1024"
+    vb.cpus   = 1
+  end
+
+  # ---------------------------------------------------------------------------
+  # Servidor 2: vsftpd (FTPS) + OpenSSH SFTP chroot. Se levanta primero para
+  # que la PKI (certs/) exista cuando el cliente la necesite.
+  # ---------------------------------------------------------------------------
+  config.vm.define "srv2" do |srv2|
+    srv2.vm.hostname = "srv2-#{CODIGO}"
+    srv2.vm.network "private_network", ip: IP_SRV2, virtualbox__intnet: INTNET
+    # Why: puerto de gestion de Vagrant explicito (solo 127.0.0.1 del host)
+    # para no confundirlo con el 2222 publico del parcial.
+    srv2.vm.network "forwarded_port", id: "ssh", guest: 22, host: 2302, host_ip: "127.0.0.1"
+    srv2.vm.provider("virtualbox") { |vb| vb.name = "Parcial2_srv2-#{CODIGO}" }
+
+    srv2.vm.provision "shell", path: "scripts/srv2_provision.sh", env: COMMON_ENV
+  end
+
+  # ---------------------------------------------------------------------------
+  # Servidor 1: UFW como unico punto de entrada + DNAT hacia srv2
+  # ---------------------------------------------------------------------------
+  config.vm.define "srv1" do |srv1|
+    srv1.vm.hostname = "srv1-#{CODIGO}"
+    srv1.vm.network "private_network", ip: IP_PUBLICA
+    srv1.vm.network "private_network", ip: IP_SRV1_IN, virtualbox__intnet: INTNET
+    srv1.vm.network "forwarded_port", id: "ssh", guest: 22, host: 2301, host_ip: "127.0.0.1"
+    srv1.vm.provider("virtualbox") { |vb| vb.name = "Parcial2_srv1-#{CODIGO}" }
+
+    srv1.vm.provision "shell", path: "scripts/srv1_provision.sh", env: COMMON_ENV
+  end
+
+  # ---------------------------------------------------------------------------
+  # Cliente Linux: DNS sobre TLS (systemd-resolved) + clientes FTPS/SFTP + tshark
+  # ---------------------------------------------------------------------------
+  config.vm.define "cli" do |cli|
+    cli.vm.hostname = "cli-#{CODIGO}"
+    cli.vm.network "private_network", ip: IP_CLI
+    cli.vm.network "forwarded_port", id: "ssh", guest: 22, host: 2303, host_ip: "127.0.0.1"
+    cli.vm.provider("virtualbox") { |vb| vb.name = "Parcial2_cli-#{CODIGO}" }
+
+    cli.vm.provision "shell", path: "scripts/cli_provision.sh", env: COMMON_ENV
+  end
+end

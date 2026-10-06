@@ -1,0 +1,6 @@
+# Why: scripts y archivos de configuracion se ejecutan en Linux; CRLF los rompe.
+*.sh          text eol=lf
+config/**     text eol=lf
+Vagrantfile   text eol=lf
+*.png         binary
+*.pcapng      binary

@@ -1,0 +1,5 @@
+subject=C = CO, ST = Valle del Cauca, L = Cali, O = UAO, OU = Servicios Telematicos, CN = srv2-2220335
+issuer=C = CO, ST = Valle del Cauca, L = Cali, O = UAO, OU = Servicios Telematicos, CN = CA Servicios Telematicos 2220335
+notBefore=Oct  5 02:12:22 2026 GMT
+notAfter=Jan  7 02:12:22 2029 GMT
+sha256 Fingerprint=88:3D:11:C7:C4:F5:D6:7F:2B:37:69:9D:9A:86:3C:62:7A:6E:1B:15:23:0B:3E:B0:81:4A:6F:41:BF:0A:B8:3D

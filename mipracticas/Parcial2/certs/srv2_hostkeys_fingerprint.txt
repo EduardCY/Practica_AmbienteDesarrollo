@@ -1,0 +1,4 @@
+1024 SHA256:Luv7ewL990pdx10sqwrzrrfKjsR2yHhPcUbiinSsopc root@srv2-2220335 (DSA)
+256 SHA256:EAkGkrFO4iuIYmGwuiaa25/wcGhSRvhP/lg05ewvMaU root@vagrant (ECDSA)
+256 SHA256:CifvuKnCFUxaTaHjJPvXJRQcfQVeROGRu5rhIY1FQYs root@vagrant (ED25519)
+3072 SHA256:Zvr7oKqGNPTmHAmk7ieEZYYYHbSRRDstZTU13fOT9Wg root@vagrant (RSA)

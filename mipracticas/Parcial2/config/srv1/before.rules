@@ -1,0 +1,114 @@
+#
+# rules.before  -  srv1-2220335  (/etc/ufw/before.rules)
+#
+# Practica 7 / Segundo Parcial - Servicios Telematicos
+# Base: before.rules por defecto de ufw 0.36.1 (Ubuntu 22.04) + tabla *nat
+# y una regla de endurecimiento en ufw-before-forward.
+#
+# IP publica de srv1 (la que usa el cliente): 192.168.100.3
+# Servidor interno (srv2):                    192.168.50.2
+#
+
+# =============================================================================
+# TABLA NAT - Reenvio de puertos (DNAT) hacia srv2
+# =============================================================================
+*nat
+:PREROUTING ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+
+# Why "-d 192.168.100.3": solo se traduce el trafico dirigido a la IP publica;
+# el SSH de administracion de srv1 (22/tcp) nunca se ve afectado.
+
+# [Parte 1] FTPS - canal de control (AUTH TLS, USER/PASS cifrados)
+-A PREROUTING -d 192.168.100.3 -p tcp --dport 21 -j DNAT --to-destination 192.168.50.2:21
+
+# [Parte 1] FTPS - rango pasivo del canal de datos (= pasv_min/max_port de vsftpd)
+-A PREROUTING -d 192.168.100.3 -p tcp --dport 50000:50010 -j DNAT --to-destination 192.168.50.2
+
+# [Parte 3] SFTP - puerto publico 2222 -> SSH (22) de srv2
+-A PREROUTING -d 192.168.100.3 -p tcp --dport 2222 -j DNAT --to-destination 192.168.50.2:22
+
+# SNAT/MASQUERADE hacia srv2.
+# Why: la ruta por defecto de srv2 es la NAT de Vagrant (eth0). Sin reescribir el
+# origen, srv2 responderia al cliente por eth0 (ruta asimetrica) y el handshake
+# TCP fallaria. Con MASQUERADE srv2 ve a 192.168.50.3 y responde por la red interna.
+-A POSTROUTING -d 192.168.50.2 -p tcp --dport 21 -j MASQUERADE
+-A POSTROUTING -d 192.168.50.2 -p tcp --dport 50000:50010 -j MASQUERADE
+-A POSTROUTING -d 192.168.50.2 -p tcp --dport 22 -j MASQUERADE
+
+COMMIT
+
+# =============================================================================
+# TABLA FILTER (contenido por defecto de ufw)
+# =============================================================================
+# Don't delete these required lines, otherwise there will be errors
+*filter
+:ufw-before-input - [0:0]
+:ufw-before-output - [0:0]
+:ufw-before-forward - [0:0]
+:ufw-not-local - [0:0]
+# End required lines
+
+
+# allow all on loopback
+-A ufw-before-input -i lo -j ACCEPT
+-A ufw-before-output -o lo -j ACCEPT
+
+# quickly process packets for which we already have a connection
+-A ufw-before-input -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-output -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-forward -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# drop INVALID packets (logs these in loglevel medium and higher)
+-A ufw-before-input -m conntrack --ctstate INVALID -j ufw-logging-deny
+-A ufw-before-input -m conntrack --ctstate INVALID -j DROP
+
+# [Parcial 2 - Endurecimiento] Solo se reenvia hacia srv2 trafico que haya
+# entrado por DNAT. Why: las reglas "ufw route allow ... to 192.168.50.2 port 21/22"
+# tambien aceptarian conexiones DIRECTAS a 192.168.50.2 si un cliente agregara
+# manualmente una ruta via srv1. Esta regla lo impide (srv2:22 nunca es directo).
+-A ufw-before-forward -d 192.168.50.2 -m conntrack ! --ctstate DNAT -j DROP
+
+# ok icmp codes for INPUT
+-A ufw-before-input -p icmp --icmp-type destination-unreachable -j ACCEPT
+-A ufw-before-input -p icmp --icmp-type time-exceeded -j ACCEPT
+-A ufw-before-input -p icmp --icmp-type parameter-problem -j ACCEPT
+-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT
+
+# ok icmp code for FORWARD
+-A ufw-before-forward -p icmp --icmp-type destination-unreachable -j ACCEPT
+-A ufw-before-forward -p icmp --icmp-type time-exceeded -j ACCEPT
+-A ufw-before-forward -p icmp --icmp-type parameter-problem -j ACCEPT
+-A ufw-before-forward -p icmp --icmp-type echo-request -j ACCEPT
+
+# allow dhcp client to work
+-A ufw-before-input -p udp --sport 67 --dport 68 -j ACCEPT
+
+#
+# ufw-not-local
+#
+-A ufw-before-input -j ufw-not-local
+
+# if LOCAL, RETURN
+-A ufw-not-local -m addrtype --dst-type LOCAL -j RETURN
+
+# if MULTICAST, RETURN
+-A ufw-not-local -m addrtype --dst-type MULTICAST -j RETURN
+
+# if BROADCAST, RETURN
+-A ufw-not-local -m addrtype --dst-type BROADCAST -j RETURN
+
+# all other non-local packets are dropped
+-A ufw-not-local -m limit --limit 3/min --limit-burst 10 -j ufw-logging-deny
+-A ufw-not-local -j DROP
+
+# allow MULTICAST mDNS for service discovery (be sure the MULTICAST line above
+# is uncommented)
+-A ufw-before-input -p udp -d 224.0.0.251 --dport 5353 -j ACCEPT
+
+# allow MULTICAST UPnP for service discovery (be sure the MULTICAST line above
+# is uncommented)
+-A ufw-before-input -p udp -d 239.255.255.250 --dport 1900 -j ACCEPT
+
+# don't delete the 'COMMIT' line or these rules won't be processed
+COMMIT
