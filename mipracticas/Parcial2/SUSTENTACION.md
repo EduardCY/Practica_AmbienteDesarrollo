@@ -59,6 +59,9 @@ sudo ufw status verbose
 sysctl net.ipv4.ip_forward
 ```
 - **Salida esperada:** `Default: deny (incoming), allow (outgoing), deny (routed)` y `net.ipv4.ip_forward = 1`.
+- 💡 **Explicación sencilla:**
+  * El Servidor 1 es como el **portero de un edificio**. La regla `deny (routed)` significa que nadie puede pasar al interior del edificio a menos que el portero tenga una orden escrita explícita para dejarlo cruzar.
+  * `net.ipv4.ip_forward = 1` es como darle permiso al portero de abrir la puerta trasera que da al patio interior (`srv2`). Si esto estuviera en 0, aunque el portero quisiera pasar el paquete, el sistema operativo Linux se lo prohibiría.
 
 #### Paso 1.2: Intento de Acceso Directo desde el Cliente (Debe Fallar)
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -69,15 +72,20 @@ nc -zv -w 3 192.168.50.2 21
 nc -zv -w 3 192.168.50.2 22
 ```
 - **Salida esperada:** `timed out` en ambos intentos.
+- 💡 **Explicación sencilla:**
+  * La IP `192.168.50.2` pertenece a una red privada cerrada dentro de VirtualBox. El cliente `cli` está en otra red (`192.168.100.x`) y no tiene cable ni camino directo hacia ella.
+  * Es como intentar llamar por interfono a un apartamento sin marcar antes por la portería: nadie responde y la llamada se cae por tiempo de espera (`timed out`).
 
 #### Paso 1.3: Prueba desde el Host Físico de Windows (Debe Fallar)
 > **Terminal a utilizar:** 🪟 **Terminal 4 (Host Windows PowerShell)**  
-> **Objetivo:** Comprobar que el aislamiento de `srv2` aplica también para el host físico.
+> **Objetivo:** Comprobar que el aislamiento de `srv2` aplica también para el computador físico real del estudiante.
 
 ```powershell
 Test-NetConnection 192.168.50.2 -Port 21
 ```
 - **Salida esperada:** `TcpTestSucceeded : False`.
+- 💡 **Explicación sencilla:**
+  * Esto demuestra que ni siquiera tu propio computador físico con Windows puede tocar al Servidor 2 directamente. El Servidor 2 está completamente escondido y protegido detrás del Servidor 1.
 
 ---
 
@@ -91,6 +99,9 @@ Test-NetConnection 192.168.50.2 -Port 21
 sudo ufw status numbered
 ```
 - **Salida esperada:** Regla 1 `22/tcp ALLOW IN` (administración local), y reglas `ALLOW FWD` para `21/tcp`, `50000:50010/tcp` y `22/tcp` dirigidas a `192.168.50.2`.
+- 💡 **Explicación sencilla:**
+  * `ALLOW IN` significa "servicios que atiende el propio Servidor 1" (solo el puerto 22 para que nosotros podamos administrarlo por consola).
+  * `ALLOW FWD` significa "tráfico que el Servidor 1 no atiende él mismo, sino que lo deja pasar hacia el Servidor 2". Así separamos la seguridad del router de los servicios que están detrás.
 
 #### Paso 2.2: Escaneo de Puertos No Autorizados
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -100,6 +111,8 @@ sudo ufw status numbered
 nc -zv -w 3 192.168.100.3 80
 ```
 - **Salida esperada:** `nc: connect to 192.168.100.3 port 80 (tcp) timed out`.
+- 💡 **Explicación sencilla:**
+  * Si intentamos tocar cualquier puerta que no hayamos autorizado (como el puerto web 80), el firewall simplemente ignora el mensaje y no contesta nada. Aplica el principio de seguridad de **mínimo privilegio**: todo lo que no esté explícitamente permitido, está prohibido.
 
 ---
 
@@ -113,6 +126,8 @@ nc -zv -w 3 192.168.100.3 80
 sudo ufw route delete allow proto tcp from any to 192.168.50.2 port 21
 ```
 - **Salida esperada:** `Rule updated`.
+- 💡 **Explicación sencilla:**
+  * Aquí le quitamos el permiso al portero de dejar pasar gente al puerto 21 de `srv2`.
 
 #### Paso 3.2: Constatar Bloqueo en el Cliente
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -122,6 +137,8 @@ sudo ufw route delete allow proto tcp from any to 192.168.50.2 port 21
 nc -zv -w 3 192.168.100.3 21
 ```
 - **Salida esperada:** `Connection timed out`.
+- 💡 **Explicación sencilla:**
+  * Como el portero ya no tiene la orden de dejar pasar, tira los paquetes a la basura. El cliente se queda esperando respuesta hasta que se rinde (`timed out`).
 
 #### Paso 3.3: Restaurar la Regla de Reenvío
 > **Terminal a utilizar:** 🖥️ **Terminal 1 (`srv1`)**  
@@ -131,6 +148,9 @@ nc -zv -w 3 192.168.100.3 21
 sudo ufw route allow proto tcp from any to 192.168.50.2 port 21 comment 'FTPS control -> srv2'
 ```
 - **Salida esperada:** `Rule added`.
+- 💡 **Explicación de diferencia clave:**
+  * `ufw allow`: Se usa cuando el servicio corre **en el mismo servidor** (cadena INPUT).
+  * `ufw route allow`: Se usa cuando el paquete va **de paso hacia otra máquina** (cadena FORWARD). Es la forma correcta y moderna de configurar firewalls enrutadores en Ubuntu.
 
 #### Paso 3.4: Constatar Conectividad Inmediata
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -165,11 +185,12 @@ sudo sed -n '/^\*nat/,/^COMMIT/p' /etc/ufw/before.rules
   -A POSTROUTING -d 192.168.50.2 -p tcp --dport 22 -j MASQUERADE
   COMMIT
   ```
-- **Explicación técnica de la configuración decidida:**
-  * `-d 192.168.100.3`: Solo traduce paquetes dirigidos explícitamente a la IP pública de `srv1`. El tráfico local de `srv1` no es alterado.
-  * `DNAT --dport 21`: Reescribe la IP destino al servidor interno `srv2:21` (canal de control FTPS).
-  * `DNAT --dport 50000:50010`: Reescribe los puertos pasivos para permitir la transferencia de datos y listados.
-  * `POSTROUTING MASQUERADE`: Reescribe la IP origen a `192.168.50.3`. **Por qué es obligatoria:** Si no existiera, `srv2` vería la IP del cliente y respondería por su gateway por defecto (`eth0` NAT de Vagrant), produciendo una ruta asimétrica y la ruptura del handshake TCP. Con MASQUERADE, `srv2` responde siempre hacia `srv1`.
+- 💡 **Explicación sencilla (por qué se hizo y qué significa cada regla):**
+  * `-d 192.168.100.3`: Le dice al firewall: *"Solo traduce los paquetes dirigidos a mi IP pública"*. De esta forma, el tráfico local del propio Servidor 1 no se confunde ni se altera.
+  * `DNAT --dport 21`: **Canal de control FTPS**. Cuando un cliente toca la puerta 21 del Servidor 1 pidiendo FTP, el Servidor 1 le cambia el destinatario al sobre y se lo entrega en privado al Servidor 2 (`192.168.50.2:21`).
+  * `DNAT --dport 50000:50010`: **Canal de datos pasivo**. En FTP, para listar carpetas o transferir archivos se abre una segunda conexión en puertos altos. Estos 11 puertos son los canales autorizados para transferir los datos.
+  * `DNAT --dport 2222`: Publica el servicio SFTP en el puerto 2222 externo para no chocar con el puerto 22 de administración de `srv1`, y lo reenvía al puerto 22 de `srv2`.
+  * `POSTROUTING MASQUERADE`: **Regla salvavidas contra ruta asimétrica**. Si no estuviera, el Servidor 2 vería que le escribió el cliente e intentaría responderle por su salida a internet común (la red NAT de Vagrant). Saldría por una puerta diferente a la que entró y la conexión se rompería. Con MASQUERADE, el Servidor 1 le dice al Servidor 2: *"Respóndeme a mí, que yo me encargo de entregárselo al cliente"*. Así la conversación nunca se corta.
 
 #### Paso 4.2: Inspeccionar Contadores de Paquetes en iptables
 > **Terminal a utilizar:** 🖥️ **Terminal 1 (`srv1`)**  
@@ -179,6 +200,7 @@ sudo sed -n '/^\*nat/,/^COMMIT/p' /etc/ufw/before.rules
 sudo iptables -t nat -L -n -v
 ```
 - **Salida esperada:** Tablas PREROUTING y POSTROUTING con contadores de paquetes activos (> 0), demostrando que el tráfico atraviesa las reglas NAT.
+- 💡 **Explicación sencilla:** Los números que aumentan en las columnas `pkts` (paquetes) y `bytes` son la prueba viva de que los datos están pasando por nuestras reglas de traducción.
 
 ---
 
@@ -204,11 +226,11 @@ grep -E '^(ssl_|force_|rsa_|userlist_)' /etc/vsftpd.conf
   rsa_cert_file=/etc/ssl/certs/servidor.crt
   rsa_private_key_file=/etc/ssl/private/servidor.key
   ```
-- **Explicación técnica de la configuración decidida:**
-  * `userlist_enable=YES` + `userlist_deny=NO`: **Modo Lista Blanca estricta**. Solo los usuarios listados en `/etc/vsftpd.userlist` (`ftp_2220335`) pueden autenticar; usuarios del sistema como `vagrant` son bloqueados por diseño antes de validar contraseñas.
-  * `ssl_enable=YES`: Habilita soporte para FTPS explícito mediante `AUTH TLS` en el puerto 21.
-  * `force_local_logins_ssl=YES` y `force_local_data_ssl=YES`: **Seguridad obligatoria**. Rechaza transferencias y autenticación en texto claro.
-  * `ssl_tlsv1=YES` con SSLv2/SSLv3 deshabilitados: Mitiga vulnerabilidades conocidas (POODLE, DROWN).
+- 💡 **Explicación sencilla (por qué se hizo y qué significa cada parámetro):**
+  * `userlist_enable=YES` y `userlist_deny=NO`: Es una **lista de invitados VIP**. Solo quien esté explícitamente anotado en el archivo `/etc/vsftpd.userlist` (`ftp_2220335`) tiene permiso de entrar. Los demás usuarios del sistema (como `vagrant`) son rechazados de inmediato con error 530, ni siquiera se molesta en mirar si su contraseña es correcta.
+  * `ssl_enable=YES`: Prende el motor de encriptación para soportar FTPS explícito con el comando `AUTH TLS`.
+  * `force_local_logins_ssl=YES` y `force_local_data_ssl=YES`: **Cifrado obligatorio**. El servidor le exige al cliente encriptar tanto la contraseña como los archivos. Si el cliente intenta hablar en texto plano sin cifrar, el servidor le cuelga la llamada.
+  * `ssl_tlsv1=YES` (con SSLv2 y SSLv3 en NO): Apaga versiones viejas e inseguras de SSL de los años 90 que tienen fallos conocidos como POODLE o DROWN.
 
 #### Paso 5.2: Verificación de Permisos de Clave y Cadena Criptográfica
 > **Terminal a utilizar:** 🖧 **Terminal 2 (`srv2`)**  
@@ -239,9 +261,11 @@ grep -E '^pasv_' /etc/vsftpd.conf
   pasv_address=192.168.100.3
   pasv_addr_resolve=NO
   ```
-- **Explicación técnica de la configuración decidida:**
-  * `pasv_min_port=50000` y `pasv_max_port=50010`: Delimita el rango pasivo a exactamente 11 puertos para no tener que abrir miles de puertos efímeros en el firewall.
-  * `pasv_address=192.168.100.3`: **Directiva crucial tras NAT**. `vsftpd` está en `192.168.50.2`. Si no se define esta directiva, anunciaría en la respuesta `227 Entering Passive Mode` su IP interna privada, a la cual el cliente externo no puede llegar. Al forzar `192.168.100.3`, el cliente sabe que debe enviar los paquetes de datos a la IP pública de `srv1`.
+- 💡 **Explicación sencilla:**
+  * En FTP pasivo, cuando el cliente pide ver archivos, el servidor le responde: *"Listo, conéctate a esta IP y a este puerto para pasarte los datos"*.
+  * Como el Servidor 2 está escondido en la red interna (`192.168.50.2`), si no le ponemos `pasv_address`, le diría al cliente: *"Conéctate a 192.168.50.2"*. Pero el cliente está afuera y no tiene cómo llegar a esa IP privada.
+  * Con `pasv_address=192.168.100.3`, obligamos al Servidor 2 a decirle al cliente la verdad útil: *"Conéctate a la IP pública del Servidor 1 (192.168.100.3), que él me pasa los paquetes"*.
+  * Delimitamos los puertos de 50000 a 50010 para solo tener que abrir 11 puertos en el firewall, en lugar de abrir miles de puertos inseguros al azar.
 
 ---
 
@@ -269,11 +293,11 @@ openssl x509 -in /etc/ssl/certs/servidor.crt -noout -fingerprint -sha256
   Error: Conexión superó el tiempo de espera después de 20 segundos de inactividad
   Error: No se pudo conectar al servidor
   ```
-- **Explicación técnica del fallo:** La red `192.168.50.0/24` es una red privada interna de VirtualBox (`intnet_parcial2_2220335`). El Host Windows solo pertenece al adaptador `192.168.100.0/24`. Al no tener ruta ni visibilidad de capa 2/3 hacia la red interna, el paquete TCP SYN nunca recibe respuesta y se produce un **Connection timed out**.
+- 💡 **Explicación sencilla del fallo:** La red `192.168.50.0/24` es una red privada interna que solo existe adentro de VirtualBox. Windows no tiene ninguna tarjeta de red en esa subred. Es como intentar marcar a una extensión telefónica desconectada: la señal se pierde en el vacío y se produce un tiempo de espera agotado (**Timeout**).
 
 #### Paso 7.3: Prueba de Fallo 2 — Conexión con Usuario No Autorizado (`vagrant` / `vagrant`) (Debe Fallar)
 > **Terminal a utilizar:** 🪟 **Terminal 4 (Host Windows — FileZilla GUI)**  
-> **Objetivo:** Demostrar la efectividad de la lista blanca (`userlist_deny=NO`) rechazando usuarios del sistema.
+> **Objetivo:** Demostrar que la lista blanca protege al sistema rechazando cuentas no autorizadas aunque existan en Linux.
 
 1. **Datos en FileZilla:**
    * **Servidor:** `192.168.100.3` | **Usuario:** `vagrant` | **Contraseña:** `vagrant` | **Puerto:** `21`
@@ -281,7 +305,6 @@ openssl x509 -in /etc/ssl/certs/servidor.crt -noout -fingerprint -sha256
 - **Salida esperada en el log de FileZilla:**
   ```text
   Estado: Conectando a 192.168.100.3:21...
-  Estado: Conexión establecida, esperando el mensaje de bienvenida...
   Respuesta: 220 (vsFTPd 3.0.5)
   Comando: AUTH TLS
   Respuesta: 234 Using authentication type TLS
@@ -291,23 +314,25 @@ openssl x509 -in /etc/ssl/certs/servidor.crt -noout -fingerprint -sha256
   Respuesta: 530 Permission denied.
   Error: Error crítico: No se pudo conectar al servidor
   ```
-- **Explicación técnica del fallo:** En `/etc/vsftpd.conf`, las directivas `userlist_enable=YES` y `userlist_deny=NO` configuran una lista blanca estricta basada en `/etc/vsftpd.userlist`. Como el usuario `vagrant` no está en este archivo, `vsftpd` emite el código de error `530 Permission denied` de inmediato y rechaza la sesión, impidiendo que usuarios del sistema operativo sin autorización accedan al FTP.
+- 💡 **Explicación sencilla del fallo:** El usuario `vagrant` sí existe en el sistema operativo Linux con clave `vagrant`, pero en `vsftpd.conf` configuramos una **lista blanca VIP** (`userlist_deny=NO`). Como `vagrant` no está en la lista de invitados (`/etc/vsftpd.userlist`), el servidor le dice de inmediato `530 Permission denied` y le cierra la puerta en la cara sin siquiera verificar su contraseña.
 
-#### Paso 7.4: Prueba de Éxito — Conexión Legítima FTPS y Cotejo de Huella
+#### Paso 7.4: Prueba de Éxito — Conexión Legítima FTPS, Validación de Huella y Transferencia
 > **Terminal a utilizar:** 🪟 **Terminal 4 (Host Windows — FileZilla GUI)**  
-> **Objetivo:** Establecer sesión FTPS explícita, cotejar la huella SHA-256 para mitigar ataques MITM y transferir archivos satisfactoriamente.
+> **Objetivo:** Conectarse exitosamente con el usuario autorizado, validar el certificado y transferir archivos.
 
 1. **Configuración en Gestor de Sitios (`Ctrl + S`):**
    * **Servidor:** `192.168.100.3` | **Puerto:** `21`
    * **Cifrado:** `Requiere FTP explícito sobre TLS`
    * **Usuario:** `ftp_2220335` | **Contraseña:** `Ftps2220335!`
    * **Ajustes de transferencia:** `Pasivo`
-2. **Cotejo de Alerta y Validación de Seguridad:**
-   * Al conectar, FileZilla muestra la ventana emergente: *"El certificado del servidor no es conocido"*.
-   * Cotejar con el evaluador que la **Huella digital SHA-256** coincide exactamente con la salida obtenida en `srv2` (`88:3D:11:...`). Presionar **Aceptar**.
+2. **Validación visual de la Alerta de Certificado:**
+   * FileZilla saca una ventana diciendo: *"El certificado del servidor no es conocido"*.
+   * Mostrarle al evaluador que la **Huella digital SHA-256** es idéntica a la que consultamos en la terminal del Servidor 2 (`88:3D:11:...`).
+   * Marcar la casilla *"Confiar siempre en este certificado"* y pulsar **Aceptar**.
 3. **Transferencia de Archivos:**
-   * Subir `2220335.txt` al directorio remoto y descargarlo de nuevo como comprobación.
-- **Salida esperada:** Log con comandos `AUTH TLS`, `234 Proceed`, `USER ftp_2220335`, `PASS ****`, `PBSZ 0`, `PROT P`, `227 Entering Passive Mode (192,168,100,3,195,80)` y `Transferencia satisfactoria`.
+   * Arrastrar o hacer doble clic en `2220335.txt` para subirlo al servidor y descargarlo de vuelta.
+- **Salida esperada:** Conexión exitosa, listado de carpetas obtenido por los puertos 50000..50010 y mensaje verde `Transferencia satisfactoria`.
+- 💡 **Explicación sencilla:** Con esto demostramos las 3 cosas clave: entramos con el usuario correcto, confirmamos que el certificado es auténtico comparando su huella digital, y transferimos archivos con total cifrado.
 
 ---
 
@@ -327,6 +352,10 @@ depth=0 CN = srv2-2220335
 New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
 Verify return code: 0 (ok)
 ```
+- 💡 **Explicación sencilla:**
+  * `depth=1`: Es el emisor o "padre" (nuestra Autoridad Certificadora CA).
+  * `depth=0`: Es el servidor o "hijo" (el certificado del Servidor 2).
+  * `Verify return code: 0 (ok)`: Significa que el certificado es 100% auténtico y encaja a la perfección con la firma de la CA. Cero advertencias y máxima seguridad bajo TLS 1.3.
 
 ---
 
@@ -335,11 +364,11 @@ Verify return code: 0 (ok)
 > [!IMPORTANT]
 > **Interfaz a capturar en Wireshark:** Seleccionar **`Ethernet 4`** en Windows (asociada a la IP `192.168.100.1`) o capturar directamente en `cli` sobre **`eth1`**.
 
-#### Paso 9.1: Demostración FTP en Texto Plano (Vulnerabilidad)
+#### Paso 9.1: Demostración FTP en Texto Plano (Peligro de Intercepción)
 > **Terminal a utilizar:** 🖧 **Terminal 2 (`srv2`)** + 💻 **Terminal 3 (`cli`)** + 🪟 **Wireshark GUI (`Ethernet 4`)**  
-> **Objetivo:** Evidenciar la exposición de credenciales y datos en texto plano.
+> **Objetivo:** Demostrar cómo en FTP clásico cualquier persona en la red puede espiar y robar contraseñas.
 
-1. En 🖧 `srv2`: `sudo bash /vagrant/scripts/demo/ftps_tls.sh off`
+1. En 🖧 `srv2`: Apagar el cifrado con `sudo bash /vagrant/scripts/demo/ftps_tls.sh off`
 2. En 🪟 Wireshark: Iniciar captura en `Ethernet 4` con filtro `ftp || ftp-data` (o ejecutar en 💻 `cli`: `sudo tshark -i eth1 -f "host 192.168.100.3" -w /vagrant/captures/p09_ftp_plano.pcapng -c 40 &`).
 3. En 💻 `cli`:
    ```bash
@@ -347,12 +376,13 @@ Verify return code: 0 (ok)
    ```
 4. En 🪟 Wireshark: Clic derecho sobre paquete `USER` → **Follow → TCP Stream**.
 - **Salida esperada:** Usuario `ftp_2220335` y contraseña `Ftps2220335!` visibles en texto claro sin cifrar.
+- 💡 **Explicación sencilla:** En FTP plano, los datos viajan como una postal abierta. Cualquiera conectado al mismo Wi-Fi o router puede leer tu clave sin ningún esfuerzo.
 
 #### Paso 9.2: Demostración FTPS Cifrado (Seguridad TLS 1.3)
 > **Terminal a utilizar:** 🖧 **Terminal 2 (`srv2`)** + 💻 **Terminal 3 (`cli`)** + 🪟 **Wireshark GUI (`Ethernet 4`)**  
 > **Objetivo:** Evidenciar la total confidencialidad e ininteligibilidad del tráfico bajo TLS 1.3.
 
-1. En 🖧 `srv2`: `sudo bash /vagrant/scripts/demo/ftps_tls.sh on`
+1. En 🖧 `srv2`: Reactivar el cifrado con `sudo bash /vagrant/scripts/demo/ftps_tls.sh on`
 2. En 🪟 Wireshark: Iniciar nueva captura en `Ethernet 4` con filtro `tcp.port == 21 || tcp.port in {50000..50010} || tls`.
 3. En 💻 `cli`:
    ```bash
@@ -360,6 +390,7 @@ Verify return code: 0 (ok)
    ```
 4. En 🪟 Wireshark: Observar comando inicial `AUTH TLS`, respuesta `234`, transición a `TLSv1.3` y registros `Application Data`.
 - **Salida esperada:** Follow TCP Stream en `Application Data` muestra únicamente bytes binarios cifrados. Credenciales y archivos protegidos con AES-256-GCM.
+- 💡 **Explicación sencilla:** Gracias a TLS 1.3 con AES-256, los datos están encriptados con matemáticas avanzadas. Incluso teniendo el paquete completo capturado en Wireshark, nadie puede saber qué usuario se conectó ni qué contenía el archivo.
 
 ---
 
@@ -396,11 +427,11 @@ grep -vE '^\s*(#|$)' /etc/systemd/resolved.conf
   Cache=yes
   DNSStubListener=yes
   ```
-- **Explicación técnica de la configuración decidida:**
-  * `DNS=1.1.1.1#cloudflare-dns.com`: **Sintaxis IP#nombre**. Es indispensable porque el cliente debe enviar la extensión **SNI** (*Server Name Indication*) durante el handshake TLS y cotejar que el certificado presentado por el resolver contenga dicho nombre en el campo *Subject Alternative Name* (SAN), mitigando la suplantación de resolvers.
-  * `Domains=~.`: La tilde punto (`~.`) convierte a estos resolvers seguros en la ruta de enrutamiento por defecto para **todos** los dominios (zona raíz), impidiendo que consultas se filtren hacia resolvers no cifrados entregados por DHCP.
-  * `DNSOverTLS=yes`: **Modo Estricto**. Fuerza todas las consultas a través de TLS en el puerto 853. Si el canal cifrado no puede establecerse o es bloqueado, la consulta **falla** deliberadamente. Impide ataques de degradación (*anti-downgrade*).
-  * `DNSStubListener=yes`: Mantiene el listener local en `127.0.0.53:53` para que aplicaciones estándar del sistema puedan resolver sin cambios, siendo `systemd-resolved` quien encapsula todo en DoT.
+- 💡 **Explicación sencilla (por qué se hizo y qué significa cada parámetro):**
+  * `DNS=1.1.1.1#cloudflare-dns.com`: La parte `#cloudflare-dns.com` le dice al cliente: *"Verifica que el certificado de seguridad pertenezca legítimamente a Cloudflare"*. Si alguien en la red intenta suplantar el servidor, el cliente detecta el engaño y no se conecta.
+  * `Domains=~.`: La tilde y el punto (`~.`) es una regla que significa: *"Cualquier dominio del planeta debe consultarse obligatoriamente por este canal cifrado"*. Evita que las consultas se escapen por los servidores DNS no seguros que entrega el router de la casa o de la universidad por DHCP.
+  * `DNSOverTLS=yes`: Es el **modo estricto**. Significa: *"O viaja 100% cifrado por el puerto 853, o no viaja nada"*. Si alguien intenta forzar una conexión insegura, el sistema prefiere dar error antes que regalar nuestra privacidad.
+  * `DNSStubListener=yes`: Crea un intermediario local en la IP `127.0.0.53:53` para que los programas comunes de Linux (`ping`, `curl`, navegadores) puedan consultar normalmente sin saber nada de TLS; `systemd-resolved` se encarga de recibir la consulta y meterla en el túnel seguro DoT.
 
 #### Paso 10.2: Verificación del Stub Local
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -466,6 +497,9 @@ dig @8.8.8.8 wikipedia.org | grep 'SERVER:'
 2. **DNS Convencional en Texto Claro (`captures/p13_dns_53.pcapng` — Filtro: `udp.port == 53`):**
    * Al ejecutar `dig @8.8.8.8 uao.edu.co`, se observa el paquete UDP `Standard query 0x... A uao.edu.co` legible en texto plano absoluto. Cualquier atacante o proveedor de internet puede registrar las consultas y realizar ataques de spoofing/envenenamiento de caché.
 - **Salida esperada:** Contraste claro entre confidencialidad total en 853/tcp vs vulnerabilidad de intercepción en 53/udp.
+- 💡 **Explicación sencilla:**
+  * En **853/tcp (DoT)**, los paquetes viajan cifrados bajo TLS 1.3. La consulta de `uao.edu.co` está completamente oculta; un espía en la red solo ve que te conectas a Cloudflare, pero no tiene idea de qué página buscas.
+  * En **53/udp (DNS clásico)**, el paquete grita en texto plano `Standard query A uao.edu.co`. Cualquier operador de internet, vecino en la red o atacante puede registrar tus hábitos de navegación o falsificar la respuesta.
 
 ---
 
@@ -491,7 +525,7 @@ resolvectl query uao.edu.co
   ```text
   uao.edu.co: resolve call failed: All synthetically created DNS servers failed.
   ```
-- **Explicación técnica del fallo:** Al estar configurado `DNSOverTLS=yes` en `/etc/systemd/resolved.conf`, el sistema operativo aplica una política estricta de seguridad: si el túnel TLS en el puerto 853 no puede negociarse, **la consulta se descarta por completo** en lugar de degradar a texto plano por el puerto 53. Esto protege al usuario contra ataques MitM que intenten forzar la comunicación a canales inseguros mediante denegación de servicio en DoT.
+- 💡 **Explicación sencilla del fallo:** Al bloquear el puerto 853 con iptables, `systemd-resolved` se da cuenta de que no puede negociar el túnel cifrado. Como configuramos `DNSOverTLS=yes` (modo estricto), el sistema se rehúsa a bajar la guardia: **prefiere fallar y quedarse sin internet antes que enviar tu consulta en texto plano desprotegido**. Esto nos protege contra atacantes que bloquean el puerto 853 a propósito para obligarnos a usar DNS tradicional y espiarnos.
 
 #### Paso 14.3: Comprobar Caída a Texto Claro en Modo Oportunista (`opportunistic`)
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -502,6 +536,7 @@ sudo bash /vagrant/scripts/demo/dot_mode.sh opportunistic
 resolvectl query uao.edu.co
 ```
 - **Salida esperada:** Resuelve exitosamente entregando las IPs, pero la consulta viaja en **texto claro no cifrado** por el puerto 53 UDP, confirmando la vulnerabilidad del modo oportunista.
+- 💡 **Explicación sencilla:** En modo oportunista el sistema es complaciente: si el candado falla, se rinde y envía la consulta en texto claro por UDP 53. La página carga, pero la privacidad del usuario quedó totalmente expuesta.
 
 #### Paso 14.4: Restaurar Estado Operativo Estricto
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -548,11 +583,11 @@ sudo sed -n '/^Match User sftp_2220335/,$p' /etc/ssh/sshd_config
       X11Forwarding no
       PermitTTY no
   ```
-- **Explicación técnica de la configuración decidida:**
-  * `Subsystem sftp internal-sftp`: Usa el subsistema interno de OpenSSH que corre en el mismo proceso `sshd`. **Por qué es decisivo:** Un subsistema externo como `/usr/lib/openssh/sftp-server` requeriría copiar `/bin/sh`, bibliotecas dinámicas (`libc`) y archivos de configuración dentro de la jaula; `internal-sftp` no requiere ningún binario dentro de la jaula.
-  * `ChrootDirectory /home/sftp_2220335`: Confinamiento estricto. El proceso redefine la raíz (`/`) del sistema de archivos para ese usuario, imposibilitando acceder a `/etc`, `/var`, `/home` u otros directorios del sistema.
-  * `ForceCommand internal-sftp` + `PermitTTY no`: Anula cualquier intento de abrir una sesión interactiva de shell o ejecutar comandos remotos.
-  * `PasswordAuthentication yes` (en bloque Match): Habilita contraseña exclusivamente para el usuario SFTP, mientras que el resto del servidor solo acepta llaves SSH públicas.
+- 💡 **Explicación sencilla (por qué se hizo y qué significa cada parámetro):**
+  * `Subsystem sftp internal-sftp`: Usa el motor interno de OpenSSH. La gran ventaja es que corre dentro del mismo proceso y **no necesita copiar binarios ni librerías dentro de la jaula**. Si usáramos el sftp-server viejo, nos tocaría copiar `/bin/sh` y media instalación de Linux dentro de la carpeta del usuario.
+  * `ChrootDirectory /home/sftp_2220335`: Es el **enjaulamiento estricto**. Hace que para ese usuario su carpeta personal sea la raíz (`/`) de todo el planeta. No puede salir a curiosear archivos del sistema (`/etc/passwd`, `/var/log`, etc.).
+  * `ForceCommand internal-sftp` y `PermitTTY no`: **Le apaga la terminal de comandos**. El usuario solo tiene permiso de mover archivos; no puede ejecutar comandos ni actuar como administrador en el sistema.
+  * `PasswordAuthentication yes` (solo en este bloque): Permite que este usuario entre con contraseña, mientras que el resto del servidor solo acepta llaves SSH por máxima seguridad.
 
 #### Paso 15.2: Verificación de Permisos Estrictos de la Jaula
 > **Terminal a utilizar:** 🖧 **Terminal 2 (`srv2`)**  
@@ -566,7 +601,9 @@ ls -ld /home/sftp_2220335 /home/sftp_2220335/archivos
   drwxr-xr-x 3 root         root         4096 ... /home/sftp_2220335
   drwxr-xr-x 2 sftp_2220335 sftp_2220335 4096 ... /home/sftp_2220335/archivos
   ```
-- **Explicación técnica de seguridad:** OpenSSH exige que el directorio `ChrootDirectory` sea propiedad exclusiva de `root:root` y que ningún otro usuario tenga permisos de escritura (`755`). Si el usuario tuviera permisos de escritura en la raíz de su chroot, podría crear enlaces simbólicos o bibliotecas maliciosas para escapar de la jaula. Por esto, la escritura se delega al subdirectorio `archivos/`.
+- 💡 **Explicación sencilla de seguridad:**
+  * OpenSSH tiene una regla de oro estricta: **el dueño de la jaula debe ser `root:root` con permisos 755**. Si el usuario fuera el dueño de su propia jaula, podría cambiarle los permisos, crear accesos directos maliciosos y escapar de la celda.
+  * Por eso, para que el usuario pueda guardar cosas sin romper la seguridad, le creamos la subcarpeta `archivos/`, donde él sí es dueño y tiene permiso total de escritura.
 
 #### Paso 15.3: Prueba de Fallo Controlada — Intento de Shell Interactivo SSH (Debe Ser Rechazado)
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -581,7 +618,7 @@ ssh -p 2222 sftp_2220335@192.168.100.3
   This service allows sftp connections only.
   Connection to 192.168.100.3 closed.
   ```
-- **Explicación técnica del fallo:** La directiva `ForceCommand internal-sftp` intercepta el inicio de sesión. Al detectar que la solicitud de SSH fue para un shell PTY interactivo y no una sesión SFTP, imprime el mensaje de restricción y termina inmediatamente la conexión TCP, impidiendo cualquier ejecución de comandos en el servidor.
+- 💡 **Explicación sencilla del fallo:** Al intentar entrar por `ssh` interactivo, la directiva `ForceCommand` lo frena en seco diciendo *"Este servicio solo permite conexiones SFTP"* y lo desconecta de inmediato. Demuestra que no hay riesgo de que ejecute comandos en el servidor.
 
 ---
 
@@ -620,7 +657,7 @@ sudo ufw route delete allow proto tcp from any to 192.168.50.2 port 22
 sftp -o ConnectTimeout=3 -P 2222 sftp_2220335@192.168.100.3
 ```
 - **Salida esperada:** `ssh: connect to host 192.168.100.3 port 2222: Connection timed out`.
-- **Explicación técnica del fallo:** Aunque la tabla `*nat` en PREROUTING sigue traduciendo el puerto `2222` a `192.168.50.2:22`, el paquete debe cruzar la cadena `FORWARD` de la tabla `*filter`. Al haberse eliminado la regla de autorización, la política general de UFW (`DEFAULT_FORWARD_POLICY="DROP"`) descarta el paquete silenciosamente, produciendo timeout.
+- 💡 **Explicación sencilla del fallo:** Aunque el router le cambia la dirección al paquete (DNAT), el muro del firewall tiene la orden de no dejar pasar a nadie por defecto (`DROP`). Al borrar la regla de paso (`ufw route`), el firewall tira los paquetes a la basura en silencio y la conexión se muere por tiempo de espera (**Timeout**).
 
 #### Paso 16.4: Restaurar Regla de Reenvío y Constatar Acceso Inmediato
 > **Terminal a utilizar:** 🖥️ **Terminal 1 (`srv1`)** + 💻 **Terminal 3 (`cli`)**  
@@ -634,6 +671,7 @@ sudo ufw route allow proto tcp from any to 192.168.50.2 port 22 comment 'SFTP 22
 nc -zv -w 3 192.168.100.3 2222
 ```
 - **Salida esperada en cli:** `Connection to 192.168.100.3 2222 port [tcp] succeeded!`.
+- 💡 **Explicación sencilla:** Apenas volvemos a poner la regla en el firewall, el portero abre el paso de inmediato y el puerto 2222 responde al instante.
 
 ---
 
@@ -647,6 +685,7 @@ nc -zv -w 3 192.168.100.3 2222
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 - **Salida esperada:** Huella SHA256 Ed25519 de `srv2` (ej. `SHA256:d8/l54QY3c...`).
+- 💡 **Explicación sencilla:** SSH utiliza el modelo **TOFU** (*Confía la primera vez*). La primera vez que te conectas, tu cliente guarda la huella digital del servidor en su memoria (`known_hosts`). Si en el futuro un hacker intentara meterse en el medio con otra máquina, el cliente detectará que la huella no coincide y dará una alarma roja de seguridad impidiendo la conexión.
 
 #### Paso 17.2: Iniciar Sesión, Verificar Jaula Chroot y Transferir Archivos
 > **Terminal a utilizar:** 💻 **Terminal 3 (`cli`)**  
@@ -668,6 +707,9 @@ bye
   * `pwd` devuelve `/` (prueba concluyente de que el usuario está dentro de la jaula chroot y no en `/home/sftp_2220335` real).
   * `put`: `Uploading 2220335_sftp.txt to /archivos/2220335_sftp.txt 100% ...`.
   * `get`: `Fetching /archivos/2220335_sftp.txt to 2220335_descargado.txt 100% ...`.
+- 💡 **Explicación sencilla:**
+  * Al escribir `pwd`, el sistema nos dice `/`. Esta es la prueba reina de que la jaula funciona: el usuario cree que está en el inicio de la máquina, cuando en realidad está encerrado en su carpeta asignada.
+  * Los comandos `put` y `get` demuestran que puede subir y descargar archivos con total normalidad dentro de su subcarpeta `archivos/`.
 
 ---
 
@@ -685,13 +727,16 @@ bye
    tcp.port == 2222
    ```
 3. **Desglose de paquetes a sustentar ante el evaluador:**
-   * **Handshake TCP:** Tres vías (`SYN`, `SYN-ACK`, `ACK`) hacia el puerto `2222`.
-   * **Banner de versión (en claro):** Paquete con texto `SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.x`.
-   * **Negociación de algoritmos (KEX Init):** Intercambio de cifradores simétricos (`chacha20-poly1305`, `aes256-gcm`) y funciones de hash.
-   * **Intercambio Diffie-Hellman / ECDH:** Paquetes `Elliptic Curve Diffie-Hellman Key Exchange Init/Reply` con Curve25519 donde se transfiere la clave efímera y la clave pública del host.
-   * **Activación de Cifrado (`New Keys`):** Paquete de sincronización que indica el inicio inmediato del cifrado simétrico.
-   * **Canal Multiplexado Único:** A partir de `New Keys`, **todos los paquetes subsiguientes son `Encrypted packet`**. Las credenciales (`sftp_2220335`), comandos de listado (`ls`) y transferencia binaria de archivos (`put`/`get`) viajan multiplexados sobre **ese mismo socket TCP 2222**.
+   * **Handshake TCP:** Saludo inicial de 3 vías (`SYN`, `SYN-ACK`, `ACK`) hacia el puerto `2222`.
+   * **Banner de versión (en claro):** Las máquinas se presentan diciendo `SSH-2.0-OpenSSH_8.9p1`.
+   * **Negociación de algoritmos (KEX Init):** Se ponen de acuerdo en qué tipo de candado y cifrado van a usar.
+   * **Intercambio Diffie-Hellman / ECDH:** Se pasan claves matemáticas temporales para armar la clave secreta de la sesión.
+   * **Activación de Cifrado (`New Keys`):** El paquete que dice: *"A partir de aquí, cerramos el candado"*.
+   * **Canal Multiplexado Único:** A partir de `New Keys`, **absolutamente todos los paquetes son `Encrypted packet`**. Las credenciales (`sftp_2220335`), comandos (`ls`, `cd`) y la transferencia de archivos viajan mezclados dentro de **este mismo y único tubo TCP 2222**.
 - **Salida esperada:** Demostración visual de que no existe ningún puerto pasivo ni conexiones secundarias efímeras, a diferencia de FTPS.
+- 💡 **Explicación sencilla (el gran contraste entre FTPS y SFTP):**
+  * **FTPS es engorroso para el firewall:** Requiere un canal para órdenes (puerto 21) y otro canal diferente por cada archivo que se envía (puertos 50000 a 50010). Tuvimos que abrir 12 puertos en el firewall y configurar trucos como `pasv_address`.
+  * **SFTP es limpio y superior:** Toda la comunicación (saludo, clave, subida y bajada de archivos) viaja a través de **una sola tubería TCP en el puerto 2222**. Solo abrimos 1 puerto en el firewall, no hay puertos pasivos y no hay enredos de NAT.
 
 ---
 
@@ -757,15 +802,19 @@ bash /vagrant/scripts/verify/cli_checks.sh
 
 ---
 
-### 4.2 Respuestas de 10 Segundos a Preguntas Clave del Evaluador
+### 4.2 Respuestas Claras a Preguntas Clave del Evaluador (Para Decir en Voz Alta)
 
 1. **¿Por qué fue necesario `net.ipv4.ip_forward=1`?**  
-   *UFW solo filtra paquetes (Netfilter); el reenvío entre interfaces distintas lo realiza el kernel y requiere `ip_forward=1`.*
-2. **¿Por qué `internal-sftp` y no el binario `/usr/lib/openssh/sftp-server`?**  
-   *En jaulas chroot no existen bibliotecas compartidas ni binarios; `internal-sftp` corre dentro del propio proceso `sshd` sin requerir archivos dentro de la jaula.*
-3. **¿Por qué MASQUERADE si ya hay DNAT?**  
-   *Evita enrutamiento asimétrico: si `srv2` viera la IP del cliente respondería por su gateway por defecto (NAT Vagrant `eth0`) y el handshake TCP fallaría.*
-4. **¿Por qué en FTPS se observan dos handshakes TLS distintos?**  
-   *Por la arquitectura de dos canales de FTP: uno protege el canal de control (puerto 21) y otro el canal de datos pasivo (puerto efímero).*
-5. **¿Por qué con TLS 1.3 no se ve el certificado en Wireshark?**  
-   *En TLS 1.3 el mensaje `Certificate` viaja cifrado tras el `Server Hello` gracias a las claves efímeras derivadas con Diffie-Hellman.*
+   *UFW es solo el guardia que revisa qué pasa y qué no, pero quien realmente tiene la habilidad de mover paquetes entre dos redes diferentes es el kernel de Linux. Con `ip_forward=1` le damos permiso al sistema operativo de abrir la puerta entre la red pública (`192.168.100.x`) y la red interna (`192.168.50.x`).*
+
+2. **¿Por qué usamos `internal-sftp` y no el binario tradicional `sftp-server`?**  
+   *Porque `internal-sftp` vive adentro del propio proceso de OpenSSH en memoria. Si usáramos el binario tradicional, nos tocaría copiar librerías del sistema y programas dentro de la jaula chroot del usuario para que pudiera arrancar. Con `internal-sftp` la jaula queda limpia, segura y sin archivos innecesarios.*
+
+3. **¿Por qué fue necesario MASQUERADE si ya teníamos DNAT?**  
+   *Para evitar que el Servidor 2 se confunda de camino (evitar enrutamiento asimétrico). Con MASQUERADE, el Servidor 1 le disfraza el paquete a `srv2` diciéndole: "Respóndeme a mí". Si no estuviera, `srv2` intentaría responderle al cliente por su propia salida de internet común de Vagrant (`eth0`), saldría por una puerta equivocada y la conexión se caería.*
+
+4. **¿Por qué en FTPS vemos dos handshakes TLS en Wireshark y en SFTP solo uno?**  
+   *Porque FTPS hereda la arquitectura vieja de FTP que usa dos conexiones TCP separadas: una para dar comandos (puerto 21) y otra para pasar los archivos (puerto pasivo). Cada conexión tiene que negociar su propio candado. En cambio, SFTP es una sola tubería continua (puerto 2222) donde todo viaja multiplexado.*
+
+5. **¿Por qué en Wireshark con TLS 1.3 no podemos ver el certificado del servidor?**  
+   *Porque en TLS 1.3 la privacidad aumentó: las dos máquinas primero intercambian llaves matemáticas temporales y a partir de ese instante todo va cifrado, incluyendo el certificado. En TLS 1.2 viejo el certificado viajaba visible para cualquiera.*
