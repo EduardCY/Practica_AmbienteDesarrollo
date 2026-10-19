@@ -10,3 +10,6 @@ captures/*.pcapng
 # Estado local de Vagrant
 .vagrant/
 *.log
+
+# Guías de sustentación y notas internas
+SUSTENTACION.md
