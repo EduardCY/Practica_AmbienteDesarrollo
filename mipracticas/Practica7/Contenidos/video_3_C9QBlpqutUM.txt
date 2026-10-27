@@ -1,0 +1,75 @@
+======================================================================
+ARCHIVO: video_3_C9QBlpqutUM.txt
+TÍTULO: Implementación Práctica de un Servicio RESTful con Python y Flask
+URL: https://www.youtube.com/watch?v=C9QBlpqutUM
+======================================================================
+
+1. ARQUITECTURA DEL EJEMPLO Y ESTRUCTURA DE DATOS
+----------------------------------------------------------------------
+- Framework: Microframework Flask en Python (sin extensiones complejas
+  adicionales para mantener el código minimalista y didáctico).
+- Persistencia: Simulación de una base de datos en memoria mediante una
+  lista de diccionarios Python para evitar dependencias externas.
+- Entidad "Libro" (Book): Cada registro contiene los atributos:
+  * 'id': Identificador numérico único autoincremental.
+  * 'title': Título del libro (campo obligatorio).
+  * 'description': Resumen o descripción del contenido.
+  * 'author': Nombre del autor del libro.
+
+2. MÉTODOS Y ENDPOINTS IMPLEMENTADOS
+----------------------------------------------------------------------
+a) GET /libros (Listar todos los recursos):
+   - Función: Recupera la colección completa de libros almacenados en memoria.
+   - Serialización: Utiliza la función `jsonify()` de Flask para convertir
+     la lista de diccionarios en un payload JSON válido.
+   - Respuesta: Código HTTP 200 implícito con el arreglo de objetos.
+
+b) GET /libros/<int:book_id> (Consultar recurso individual):
+   - Función: Recibe el parámetro `book_id` capturado dinámicamente desde
+     la URL.
+   - Lógica: Itera sobre la lista en memoria buscando coincidencia con el ID.
+   - Manejo de errores: Si el ID no existe, interrumpe el flujo y retorna
+     un código de estado HTTP 404 (Resource Not Found).
+   - Respuesta exitosa: Si existe, serializa el diccionario con `jsonify()`
+     y lo retorna al cliente.
+
+c) POST /libros (Crear un nuevo recurso):
+   - Función: Inserta un nuevo elemento en la colección de libros.
+   - Validación:
+     * Inspecciona `request.json` para verificar que la petición contenga
+       un cuerpo JSON válido.
+     * Valida que el campo obligatorio 'title' esté presente en el payload.
+     * Si falla alguna validación, responde inmediatamente con código
+       HTTP 400 (Bad Request).
+   - Procesamiento: Asigna automáticamente un nuevo ID (último ID + 1),
+     ensambla el nuevo diccionario y lo añade (`append`) a la lista.
+   - Respuesta: Retorna el recurso recién creado en formato JSON acompañado
+     del código HTTP 201 (Created).
+
+d) PUT /libros/<int:book_id> (Actualizar un recurso existente):
+   - Función: Modifica los atributos de un libro previamente registrado.
+   - Lógica: Localiza el libro por su `book_id`. Si se encuentra, sobrescribe
+     los campos ('title', 'author', 'description') con la información
+     proporcionada en el cuerpo de la petición.
+   - Respuesta: Retorna el objeto modificado en formato JSON reflejando
+     los cambios aplicados.
+
+e) DELETE /libros/<int:book_id> (Eliminar un recurso):
+   - Función: Da de baja un libro específico de la lista en memoria.
+   - Lógica: Busca la coincidencia del ID. Si no se localiza, retorna
+     código HTTP 404.
+   - Procesamiento: Remueve el elemento de la lista en memoria.
+   - Respuesta: Confirma la operación exitosa retornando un booleano
+     (ej. `{"result": true}`).
+
+3. PRUEBAS DE FUNCIONALIDAD CON CURL
+----------------------------------------------------------------------
+- Servidor: Ejecución local por defecto en el puerto 5000 (`localhost:5000`).
+- Casos de prueba realizados en terminal:
+  * Consulta general: `curl http://localhost:5000/libros`
+  * Consulta individual válida y prueba de 404 con ID inexistente (ej. ID 3).
+  * Envío de POST con cabecera `Content-Type: application/json` y validación
+    de la respuesta con código 201.
+  * Envío de PUT actualizando campos específicos de un ID existente.
+  * Petición DELETE removiendo un registro y comprobando su posterior
+    ausencia en la colección.

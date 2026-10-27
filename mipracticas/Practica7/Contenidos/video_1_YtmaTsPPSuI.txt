@@ -1,0 +1,73 @@
+======================================================================
+ARCHIVO: video_1_YtmaTsPPSuI.txt
+TÍTULO: Introducción a la Arquitectura REST y Servicios Web
+URL: https://www.youtube.com/watch?v=YtmaTsPPSuI
+======================================================================
+
+1. ORIGEN Y DEFINICIÓN DE REST
+----------------------------------------------------------------------
+- Creador: Definido formalmente por Roy Fielding, uno de los coautores
+  principales de la especificación HTTP.
+- Adopción: Empleado ampliamente por grandes compañías tecnológicas y
+  plataformas como Twitter, Facebook y Google.
+- Concepto central: REST (Representational State Transfer) es una
+  interfaz o estilo arquitectónico entre sistemas distribuidos que
+  aprovecha el protocolo HTTP para consultar, manipular y transferir
+  información mediante formatos estandarizados (principalmente JSON y XML).
+- Filosofía: Nace como una alternativa simple, ligera y uniforme frente
+  a tecnologías y protocolos más pesados y complejos como SOAP o CORBA.
+
+2. PRINCIPIOS Y CARACTERÍSTICAS FUNDAMENTALES
+----------------------------------------------------------------------
+- Protocolo cliente-servidor sin estado (Stateless):
+  * Cada petición HTTP debe contener en sí misma toda la información
+    necesaria para ser comprendida y procesada por el servidor.
+  * Ni el cliente ni el servidor mantienen una "sesión" o memoria de
+    estados previos para satisfacer peticiones posteriores (aunque se
+    admite el uso de mecanismos de memoria caché para optimizar el tráfico).
+- Identificación de recursos mediante URI:
+  * Todo dato o entidad del sistema se identifica de forma única
+    mediante una URI (Uniform Resource Identifier).
+  * La URI actúa como la dirección exacta para localizar, consultar,
+    actualizar o eliminar un recurso.
+- Interfaz uniforme y métodos HTTP estándar:
+  * GET: Obtener una lista de recursos o un recurso individual específico.
+  * POST: Crear y registrar un nuevo recurso.
+  * PUT: Modificar o actualizar un recurso existente.
+  * DELETE: Eliminar un recurso del sistema.
+- Sistema en capas (Layered System):
+  * La arquitectura permite desacoplar componentes jerárquicamente
+    (seguridad, balanceo de carga, almacenamiento, lógica de negocio)
+    sin que el cliente requiera conocer las capas intermedias.
+- Hipermedios (HATEOAS):
+  * Extensión del concepto de hipertexto: la respuesta del servicio
+    proporciona enlaces navegables que indican al cliente cuáles son
+    las siguientes acciones válidas que puede ejecutar sobre los recursos.
+
+3. VENTAJAS ARQUITECTÓNICAS
+----------------------------------------------------------------------
+- Separación estricta entre Cliente y Servidor:
+  * Desacopla por completo la interfaz de usuario del almacenamiento de
+    datos y la lógica backend.
+  * Posibilita alojar frontend y backend en servidores independientes.
+  * Facilita la portabilidad hacia múltiples plataformas (web, móvil, IoT)
+    y la evolución autónoma de cada componente.
+- Independencia de plataforma y lenguaje de programación:
+  * Los servicios backend pueden desarrollarse indistintamente en Python,
+    PHP, Node.js, Java, etc. Lo único indispensable es que la salida
+    respete el estándar de intercambio acordado (JSON o XML).
+- Escalabilidad, visibilidad y fiabilidad operativa.
+
+4. FORMATOS DE REPRESENTACIÓN: XML VS. JSON
+----------------------------------------------------------------------
+- XML (Extensible Markup Language):
+  * Formato tradicional estructurado mediante etiquetas personalizadas.
+  * Altamente flexible, pero carece de tipos de datos nativos (todo se
+    interpreta como cadenas de texto).
+  * Exige un proceso explícito de análisis/parseo en el código para
+    convertirlo en objetos nativos.
+- JSON (JavaScript Object Notation):
+  * Estándar predominante en la actualidad basado en pares clave-valor.
+  * Soporta tipos de datos directos (strings, números, arrays, booleanos).
+  * Lectura inmediata, menor tamaño de carga y compatibilidad nativa
+    con los navegadores web modernos sin requerir parseos complejos.

@@ -1,0 +1,75 @@
+======================================================================
+ARCHIVO: video_2_u2Ms34GE14U.txt
+TÍTULO: ¿Qué es una API? - La mejor explicación en español
+CANAL: EDteam
+URL: https://www.youtube.com/watch?v=u2Ms34GE14U
+======================================================================
+
+1. INTRODUCCIÓN Y ANALOGÍAS PRÁCTICAS
+----------------------------------------------------------------------
+- Caso Uber: Al construir un servicio de transporte con seguimiento en
+  tiempo real, crear un sistema de mapas satelitales desde cero sería
+  inviable por costo y logística. La solución consiste en conectarse a
+  la API de Google Maps para reutilizar su infraestructura.
+- Caso E-commerce: Desarrollar plataformas de pago seguras desde cero es
+  altamente complejo; se recurre a pasarelas existentes como PayPal o
+  Stripe para procesar transacciones.
+- Caso Slack: Su principal fortaleza radica en la integración fluida con
+  múltiples servicios externos, operando como un centro de mando unificado.
+- Conclusión inicial: Una API permite potenciar un sistema conectándolo
+  con soluciones desarrolladas por terceros.
+
+2. DEFINICIONES Y CONCEPTOS TÉCNICOS
+----------------------------------------------------------------------
+- Interfaz: Capa de abstracción que posibilita la interacción entre dos
+  sistemas ocultando su funcionamiento interno (análogo al volante de un
+  vehículo o a una pantalla de inicio de sesión).
+- API (Application Programming Interface): Mecanismo estandarizado para
+  que dos programas compartan datos y se comuniquen entre sí.
+- Arquitectura de software: Estructura organizativa, componentes y
+  canales de comunicación interna de una solución tecnológica.
+- Servicio Web: Sistema de intercambio en red que opera bajo el protocolo
+  HTTP para conectar plataformas distribuidas.
+
+3. ARQUITECTURAS, FORMATOS Y TIPOS DE APIS
+----------------------------------------------------------------------
+- REST (Representational State Transfer): Arquitectura predominante. Se
+  caracteriza por peticiones sin estado, uso de caché y delimitación
+  estricta de permisos de acceso.
+- Formatos de intercambio:
+  * XML: Formato clásico basado en etiquetas.
+  * JSON (JavaScript Object Notation): Estándar moderno más extendido
+    por su ligereza, claridad y facilidad de parseo.
+- Acceso:
+  * Públicas: De libre consulta por cualquier usuario o desarrollador.
+  * Privadas: Requieren credenciales. El servidor emite un token (comúnmente
+    JWT - JSON Web Token) que valida solicitudes subsiguientes.
+- Entorno de ejecución:
+  * Locales: Se comunican dentro del mismo sistema o dispositivo (ej. la
+    API de vibración del hardware de un móvil).
+  * Remotas: Operan a través de redes y servicios web (REST o SOAP).
+
+4. DESARROLLO Y CONSUMO DE REST APIS
+----------------------------------------------------------------------
+- URIs y Endpoints: Rutas e identificadores únicos empleados para consultar
+  o manipular recursos específicos.
+- Códigos de estado HTTP:
+  * 200 / 202: Operaciones exitosas o creación de recursos diferidos.
+  * 300 / 301 / 303: Redirecciones temporales o permanentes.
+  * 400 / 403 / 404: Errores del cliente (petición errónea, falta de
+    autorización o recurso inexistente).
+  * 500: Errores internos originados en el servidor.
+- Métodos HTTP (operaciones CRUD):
+  * GET: Consulta y obtención de datos.
+  * POST: Creación y envío de nuevos registros.
+  * PUT: Actualización de datos preexistentes.
+  * DELETE: Eliminación de recursos.
+
+5. BUENAS PRÁCTICAS DE IMPLEMENTACIÓN
+----------------------------------------------------------------------
+- HATEOAS: Diseño autodescriptivo que incluye enlaces a acciones o recursos
+  relacionados dentro de la respuesta.
+- Seguridad: Protección rigurosa de endpoints privados contra accesos no
+  autorizados y manipulación de bases de datos.
+- Pruebas y documentación: Validación exhaustiva de funcionalidad y redacción
+  de documentación clara, imprescindible para facilitar su adopción.

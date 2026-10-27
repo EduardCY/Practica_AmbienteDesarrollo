@@ -1,0 +1,227 @@
+{
+  "info": {
+    "_postman_id": "7b8f9a2e-4c1d-4e9f-9a3b-2c1e8f9a0b1c",
+    "name": "Práctica 7 - API REST Flask & Ubidots IoT",
+    "description": "Colección completa de pruebas para la Práctica 7: API RESTful en Python/Flask (Gestión de libros) y API REST de Ubidots (Telemetría IoT).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "ubidots_url",
+      "value": "http://industrial.api.ubidots.com/api/v1.6",
+      "type": "string"
+    },
+    {
+      "key": "ubidots_device",
+      "value": "machine",
+      "type": "string"
+    },
+    {
+      "key": "ubidots_token",
+      "value": "BBUS-qZdFGWNPNLOvb8S9q0yqAo4Bk4GLPs",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Parte 1: API REST Flask (Local)",
+      "description": "Endpoints CRUD desarrollados en apirest.py y ejecutados en la máquina virtual Ubuntu a través del puerto 5000.",
+      "item": [
+        {
+          "name": "1.1 GET - Obtener todos los libros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books",
+              "host": ["{{base_url}}"],
+              "path": ["books"]
+            },
+            "description": "Recupera la colección completa de libros en formato JSON. Código esperado: 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 GET - Obtener libro por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books/2",
+              "host": ["{{base_url}}"],
+              "path": ["books", "2"]
+            },
+            "description": "Recupera los detalles del libro con ID 2 ('El coronel no tiene quien le escriba'). Código esperado: 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 POST - Crear nuevo libro (Cien años de soledad)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Cien años de soledad\",\n  \"author\": \"Gabo\",\n  \"description\": \"Obra cumbre del realismo mágico latinoamericano\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/books",
+              "host": ["{{base_url}}"],
+              "path": ["books"]
+            },
+            "description": "Registra una nueva entidad libro en el servidor. Código esperado: 201 CREATED con el ID consecutivo asignado."
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 PUT - Actualizar autor de libro existente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"author\": \"Jorgito\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/books/2",
+              "host": ["{{base_url}}"],
+              "path": ["books", "2"]
+            },
+            "description": "Actualiza el campo 'author' del libro 2. Código esperado: 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 DELETE - Eliminar un libro",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books/1",
+              "host": ["{{base_url}}"],
+              "path": ["books", "1"]
+            },
+            "description": "Elimina el libro con ID 1. Código esperado: 200 OK con { \"result\": true }."
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 GET - Validar 404 en recurso inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books/1",
+              "host": ["{{base_url}}"],
+              "path": ["books", "1"]
+            },
+            "description": "Intenta recuperar el libro 1 recién eliminado. Código esperado: 404 NOT FOUND."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Parte 2: Ubidots REST API (IoT)",
+      "description": "Peticiones hacia el broker industrial de Ubidots para actualizar variables telemétricas del dispositivo 'machine'.",
+      "item": [
+        {
+          "name": "2.1 POST - Enviar 4 Variables con Cabecera X-Auth-Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Auth-Token",
+                "value": "{{ubidots_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 45,\n  \"humidity\": 65,\n  \"pressure\": 1013.25,\n  \"battery_level\": 92\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{ubidots_url}}/devices/{{ubidots_device}}",
+              "host": ["{{ubidots_url}}"],
+              "path": ["devices", "{{ubidots_device}}"]
+            },
+            "description": "Envía una ráfaga multivariable autenticada mediante cabecera X-Auth-Token. Código esperado: 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 POST - Enviar Variable con Token en URL (?token=...)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temperature\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{ubidots_url}}/devices/{{ubidots_device}}/?token={{ubidots_token}}",
+              "host": ["{{ubidots_url}}"],
+              "path": ["devices", "{{ubidots_device}}", ""],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{ubidots_token}}"
+                }
+              ]
+            },
+            "description": "Envía valor de temperatura autenticado mediante query string ?token=... Código esperado: 200 OK."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

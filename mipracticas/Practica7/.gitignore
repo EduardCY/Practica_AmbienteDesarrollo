@@ -1,0 +1,18 @@
+# Vagrant
+.vagrant/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.env
+venv/
+env/
+.pytest_cache/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
