@@ -1,0 +1,49 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+# =============================================================================
+# PRÁCTICA 9: APLICACIÓN WEB Y API REST EN PYTHON FLASK + MYSQL + APACHE WSGI
+# Asignatura: Ambiente de Desarrollo / Servicios Telemáticos
+# Estudiante: Eduard Criollo Yule
+# Profesor: Prof. Oscar Mondragón
+# Referencia: https://github.com/omondragon/MiniWebApp
+# =============================================================================
+
+Vagrant.configure("2") do |config|
+  # Tiempo extendido de arranque para aprovisionamiento completo de MySQL y Apache2
+  config.vm.boot_timeout = 600
+
+  # Configuración del hipervisor VirtualBox
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "servidorWeb-Practica9"
+    vb.memory = "1024"
+    vb.cpus = 1
+  end
+
+  # Definición del nodo servidorWeb (Nombre exigido en 2024-01 Practica REST_MYSQL.pdf)
+  config.vm.define :servidorWeb do |servidorWeb|
+    servidorWeb.vm.box = "bento/ubuntu-22.04"
+    servidorWeb.vm.hostname = "servidorWeb"
+
+    # Red privada Host-Only según el repositorio oficial MiniWebApp
+    servidorWeb.vm.network :private_network, ip: "192.168.60.3"
+
+    # Redirección de puertos hacia el anfitrión Windows:
+    # - Puerto 5000: Servidor Flask directo / demonio systemd (Ejercicios 1 al 5)
+    # - Puerto 8080 -> 80: Servidor productivo Apache2 + mod_wsgi (Ejercicio 6)
+    servidorWeb.vm.network :forwarded_port, guest: 5000, host: 5000, auto_correct: true
+    servidorWeb.vm.network :forwarded_port, guest: 80, host: 8080, auto_correct: true
+
+    # Aprovisionamiento de archivos iniciales hacia /home/vagrant
+    servidorWeb.vm.provision "file", source: "webapp", destination: "/home/vagrant/webapp"
+    servidorWeb.vm.provision "file", source: "init.sql", destination: "/home/vagrant/init.sql"
+
+    # Normalización previa de CRLF -> LF en script.sh antes de invocarlo (Prevención de fallos en Windows)
+    servidorWeb.vm.provision "shell", inline: <<-SHELL
+      sed -i 's/\r$//' /vagrant/script.sh 2>/dev/null || true
+      chmod +x /vagrant/script.sh 2>/dev/null || true
+    SHELL
+
+    # Ejecución del script de aprovisionamiento principal
+    servidorWeb.vm.provision "shell", path: "script.sh"
+  end
+end

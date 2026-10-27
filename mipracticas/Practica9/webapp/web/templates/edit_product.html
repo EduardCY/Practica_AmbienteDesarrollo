@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniWebApp — Edit Product</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            padding-top: 70px;
+            background-color: #f8f9fa;
+        }
+        .form-container {
+            max-width: 550px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+    <div class="container">
+        <a class="navbar-brand font-weight-bold" href="/">MiniWebApp (Flask + REST + MySQL)</a>
+        <div class="navbar-nav ml-auto">
+            <a class="nav-item nav-link" href="/">Users Management</a>
+            <a class="nav-item nav-link active" href="/products">Products Management (Ej. 5)</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="form-container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="mb-0">Edit Product</h3>
+            <a href="/products" class="btn btn-secondary btn-sm">Back to Products</a>
+        </div>
+        <form id="edit-product-form">
+            <input type="hidden" id="product-id" value="{{id}}">
+            <div class="form-group">
+                <label for="prod-name">Product Name</label>
+                <input type="text" class="form-control" id="prod-name" required>
+            </div>
+            <div class="form-group">
+                <label for="prod-description">Description</label>
+                <input type="text" class="form-control" id="prod-description" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="prod-price">Price (USD)</label>
+                    <input type="number" step="0.01" class="form-control" id="prod-price" required>
+                </div>
+                <div class="form-group col-md-6">
+                    <label for="prod-stock">Stock Quantity</label>
+                    <input type="number" class="form-control" id="prod-stock" required>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary btn-block" onclick="updateProduct()">Save Product Changes</button>
+        </form>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="/static/script.js"></script>
+<script>
+    const productId = {{id}};
+    fetch(`/api/products/${productId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('product-id').value = data.id;
+            document.getElementById('prod-name').value = data.name;
+            document.getElementById('prod-description').value = data.description;
+            document.getElementById('prod-price').value = data.price;
+            document.getElementById('prod-stock').value = data.stock;
+        })
+        .catch(error => console.error('Error:', error));
+</script>
+
+</body>
+</html>
