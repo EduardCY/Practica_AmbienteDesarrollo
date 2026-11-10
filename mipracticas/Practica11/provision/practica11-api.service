@@ -1,0 +1,28 @@
+[Unit]
+Description=Practica 11 - Microservicio API REST Flask (Gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=practica11
+Group=practica11
+WorkingDirectory=/opt/practica11/api
+Environment="DATABASE_URL=sqlite:////var/lib/practica11/products.db"
+Environment="PYTHONUNBUFFERED=1"
+# Por qué --preload: Carga la aplicación en el proceso maestro antes de crear los workers,
+# garantizando que la inicialización de la base de datos y los datos semilla se ejecuten
+# una sola vez, eliminando condiciones de carrera entre workers sobre SQLite.
+ExecStart=/opt/practica11/venv/bin/gunicorn --preload --workers 2 --bind 0.0.0.0:5000 --timeout 30 --access-logfile - --error-logfile - wsgi:app
+Restart=always
+RestartSec=2
+
+# Directivas de endurecimiento de seguridad (OWASP A05 - Security Misconfiguration)
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/practica11
+
+[Install]
+WantedBy=multi-user.target

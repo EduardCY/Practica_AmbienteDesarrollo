@@ -1,0 +1,29 @@
+# --- Credenciales AWS / SSH (NUNCA versionar) ---
+*.pem
+*.ppk
+*.key
+id_rsa*
+id_ed25519*
+.aws/
+credentials
+*.csv
+
+# --- Variables de entorno y secretos ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+
+# --- Datos locales y logs ---
+*.db
+*.sqlite3
+*.log
+.vagrant/
