@@ -14,8 +14,8 @@
     Puerto TCP donde escucha el servicio (5000 para Gunicorn nativo, 80 para Apache Proxy).
 
 .EXAMPLE
-    .\test_api_from_host.ps1 -PublicIp 3.85.120.45 -Port 5000
-    .\test_api_from_host.ps1 -PublicIp 3.85.120.45 -Port 80
+    .\test_api_from_host.ps1 -PublicIp 52.91.99.132 -Port 5000
+    .\test_api_from_host.ps1 -PublicIp 52.91.99.132 -Port 80
 #>
 
 [CmdletBinding()]

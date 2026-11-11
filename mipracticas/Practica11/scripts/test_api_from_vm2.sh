@@ -9,9 +9,9 @@
 #   ./test_api_from_vm2.sh <IP_DESTINO_VM1> [PUERTO]
 #
 # Ejemplos:
-#   ./test_api_from_vm2.sh 172.31.25.10 5000       # Prueba por IP privada (Gunicorn)
-#   ./test_api_from_vm2.sh 3.85.120.45 5000        # Prueba por IP pública (Gunicorn)
-#   ./test_api_from_vm2.sh 172.31.25.10 80         # Prueba por IP privada (Proxy Apache)
+#   ./test_api_from_vm2.sh 172.31.16.58 5000       # Prueba por IP privada (Gunicorn)
+#   ./test_api_from_vm2.sh 52.91.99.132 5000       # Prueba por IP pública (Gunicorn)
+#   ./test_api_from_vm2.sh 172.31.16.58 80         # Prueba por IP privada (Proxy Apache)
 # =============================================================================
 
 set -eo pipefail
@@ -21,7 +21,7 @@ PORT="${2:-5000}"
 
 if [[ -z "$TARGET_IP" ]]; then
     echo "Uso: $0 <IP_DESTINO_VM1> [PUERTO (por defecto: 5000)]" >&2
-    echo "Ejemplo: $0 172.31.25.10 5000" >&2
+    echo "Ejemplo: $0 172.31.16.58 5000" >&2
     exit 1
 fi
 

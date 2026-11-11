@@ -94,22 +94,22 @@ icacls.exe $KEY /inheritance:r; icacls.exe $KEY /grant:r "$($env:USERNAME):(R)"
 
 Paso 0.3 — Asignar la IP pública real provista por AWS para VM1 en esta sesión:
 ```powershell
-$VM1_PUB = "3.85.120.45"
+$VM1_PUB = "52.91.99.132"
 ```
 
 Paso 0.4 — Asignar la IP privada real de VM1:
 ```powershell
-$VM1_PRIV = "172.31.25.10"
+$VM1_PRIV = "172.31.16.58"
 ```
 
 Paso 0.5 — Asignar la IP pública de VM2:
 ```powershell
-$VM2_PUB = "54.91.80.12"
+$VM2_PUB = "54.221.25.113"
 ```
 
 Paso 0.6 — Asignar la IP privada de VM2:
 ```powershell
-$VM2_PRIV = "172.31.28.14"
+$VM2_PRIV = "172.31.23.119"
 ```
 
 ---
