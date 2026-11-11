@@ -17,16 +17,17 @@ Para una sustentación ordenada, sincronizada y profesional ante el profesor, or
 ```
 +----------------------------------------------------------------------------------------------------+
 | VENTANA 1: EDITOR VS CODE                   | VENTANA 2: TERMINAL SSH VM1 (Servidor test)          |
-| - Muestra archivos de infraestructura y     | - Conectada vía: ssh -i $KEY ubuntu@$VM1_PUB         |
-|   código (.gitignore, service, script,      | - Instalación manual de Apache, verificación local,  |
-|   app.py, 000-default.conf, index.html)     |   despliegue del API y sockets de red (80, 5000).    |
+| - Muestra archivos de infraestructura y     | - Conectada vía:                                     |
+|   código (.gitignore, service, script,      |   ssh -i $KEY ubuntu@52.91.99.132                    |
+|   app.py, 000-default.conf, index.html)     | - Apache, verificación local, API REST y sockets.    |
 +---------------------------------------------+------------------------------------------------------+
 | VENTANA 3: TERMINAL SSH VM2 (Cliente test)  | VENTANA 4: POWERSHELL HOST (PC Anfitrión Windows)    |
-| - Conectada vía: ssh -i $KEY ubuntu@$VM2_PUB| - Punto 4.b: Auditoría con Invoke-RestMethod         |
-| - Punto 4.a: Pruebas de fallo inicial de    |   mediante .\scripts\test_api_from_host.ps1          |
-|   HTTP e ICMP, y suite test_api_from_vm2.sh.| - Test-NetConnection y curl.exe nativo de Windows.   |
+| - Conectada vía:                            | - Punto 4.b: Auditoría con Invoke-RestMethod         |
+|   ssh -i $KEY ubuntu@54.221.25.113          |   mediante .\scripts\test_api_from_host.ps1          |
+| - Punto 4.a: Pruebas de fallo inicial de    | - Test-NetConnection y curl.exe nativo de Windows.   |
+|   HTTP e ICMP, y suite test_api_from_vm2.sh.|                                                      |
 +---------------------------------------------+------------------------------------------------------+
-| VENTANA 5: NAVEGADOR WEB (Consola AWS EC2 + http://$VM1_PUB/ + http://$VM1_PUB:5000/api/products)   |
+| VENTANA 5: NAVEGADOR WEB (Consola AWS + http://52.91.99.132/ + http://52.91.99.132:5000/api/products)
 +----------------------------------------------------------------------------------------------------+
 ```
 
@@ -163,13 +164,13 @@ Paso 2.1 — Demostrar la conexión web vía EC2 Instance Connect (Opción A del
 
 Paso 2.2 — Conectarse a VM1 desde la terminal local usando OpenSSH y la llave privada (Opción B del video):
 ```powershell
-ssh -i $KEY ubuntu@$VM1_PUB
+ssh -i $KEY ubuntu@52.91.99.132
 ```
 *Sustentación breve:* Ingresamos a la primera instancia a través de la terminal de Windows autenticando con la clave `test-ssh.pem` protegida con `icacls`.
 
 Paso 2.3 — Conectarse a VM2 desde una segunda terminal de PowerShell:
 ```powershell
-ssh -i $KEY ubuntu@$VM2_PUB
+ssh -i $KEY ubuntu@54.221.25.113
 ```
 *Sustentación breve:* Abrimos la sesión interactiva hacia la segunda máquina cliente usando el mismo par de claves criptográficas.
 
@@ -213,13 +214,13 @@ curl -I http://localhost
 
 Paso 3.3.1 — En VM2 (Terminal 3): Intentar consumir Apache en VM1 usando su IP privada (falla esperada):
 ```bash
-curl --max-time 5 http://$VM1_PRIV
+curl --max-time 5 http://172.31.16.58
 ```
 *Sustentación breve:* La petición se agota por timeout (`Operation timed out`). Aunque Apache está corriendo en VM1, el Security Group bloquea el puerto 80.
 
 Paso 3.3.2 — En Windows (Terminal 4 o Navegador): Intentar acceder por la IP pública de VM1 (falla esperada):
 ```powershell
-curl.exe --max-time 5 -I "http://${VM1_PUB}"
+curl.exe --max-time 5 -I "http://52.91.99.132"
 ```
 *Sustentación breve:* La petición externa también falla porque el firewall perimetral de AWS descarta los paquetes TCP SYN.
 
@@ -231,13 +232,13 @@ Paso 3.3.3 — En la consola de AWS (Ventana 5): Agregar la regla para el Puerto
 
 Paso 3.3.4 — En VM2 (Terminal 3): Repetir la petición HTTP por IP privada (éxito inmediato):
 ```bash
-curl -s http://$VM1_PRIV | grep -E "<title>|<h1>"
+curl -s http://172.31.16.58 | grep -E "<title>|<h1>"
 ```
 *Sustentación breve:* Ahora responde de inmediato entregando el título oficial `Apache2 Ubuntu Default Page`.
 
 Paso 3.3.5 — En Windows (Terminal 4): Comprobar respuesta exitosa por la IP pública:
 ```powershell
-curl.exe -s -I "http://${VM1_PUB}"
+curl.exe -s -I "http://52.91.99.132"
 ```
 *Sustentación breve:* Recibimos `HTTP/1.1 200 OK` desde el equipo anfitrión en Windows.
 
@@ -247,13 +248,13 @@ curl.exe -s -I "http://${VM1_PUB}"
 
 Paso 3.4.1 — En VM1 (Terminal 2): Probar ping hacia VM2 (falla esperada):
 ```bash
-ping -c 3 -W 2 $VM2_PRIV
+ping -c 3 -W 2 172.31.23.119
 ```
 *Sustentación breve:* Se reporta `100% packet loss` porque el protocolo ICMP no está autorizado en el Security Group.
 
 Paso 3.4.2 — En VM2 (Terminal 3): Probar ping hacia VM1 en sentido inverso (falla esperada):
 ```bash
-ping -c 3 -W 2 $VM1_PRIV
+ping -c 3 -W 2 172.31.16.58
 ```
 *Sustentación breve:* También falla en sentido opuesto con `100% packet loss`.
 
@@ -265,13 +266,13 @@ Paso 3.4.3 — En la consola de AWS (Ventana 5): Agregar la regla para ICMP:
 
 Paso 3.4.4 — En VM1 (Terminal 2): Repetir ping hacia VM2 (éxito inmediato):
 ```bash
-ping -c 3 $VM2_PRIV
+ping -c 3 172.31.23.119
 ```
 *Sustentación breve:* Respuesta instantánea con `0% packet loss` y latencia menor a 0.5 ms.
 
 Paso 3.4.5 — En VM2 (Terminal 3): Repetir ping hacia VM1 (éxito inmediato):
 ```bash
-ping -c 3 $VM1_PRIV
+ping -c 3 172.31.16.58
 ```
 *Sustentación breve:* Demostramos conectividad bidireccional completa dentro de la nube privada virtual.
 
@@ -320,19 +321,19 @@ TMP=$(mktemp -d) && git clone --depth 1 --filter=blob:none --sparse https://gith
 
 Paso 5.2 — En VM2 (Terminal 3): Ejecutar auditoría contra la IP privada de VM1 en el puerto 5000:
 ```bash
-~/scripts/test_api_from_vm2.sh $VM1_PRIV 5000
+~/scripts/test_api_from_vm2.sh 172.31.16.58 5000
 ```
 *Sustentación breve:* Validamos el ciclo CRUD completo (Health-check, GET, POST, PUT, DELETE y verificación de 404) a través de la red privada interna de la VPC con 100% PASS.
 
 Paso 5.3 — En VM2 (Terminal 3): Ejecutar auditoría contra la IP pública de VM1:
 ```bash
-~/scripts/test_api_from_vm2.sh $VM1_PUB 5000
+~/scripts/test_api_from_vm2.sh 52.91.99.132 5000
 ```
 *Sustentación breve:* Demostramos que cuando el tráfico se dirige a la IP pública, el paquete transita por el Internet Gateway y es admitido por la regla del Security Group.
 
 Paso 5.4 — En VM2 (Terminal 3): Validar consumo a través del proxy inverso de Apache (Puerto 80):
 ```bash
-~/scripts/test_api_from_vm2.sh $VM1_PRIV 80
+~/scripts/test_api_from_vm2.sh 172.31.16.58 80
 ```
 *Sustentación breve:* Confirmamos que Apache redirige las peticiones bajo `/api/` hacia Gunicorn transparentemente.
 
@@ -342,25 +343,25 @@ Paso 5.4 — En VM2 (Terminal 3): Validar consumo a través del proxy inverso de
 
 Paso 6.1 — En Windows (Terminal 4): Comprobar conectividad TCP al puerto 5000 desde el anfitrión:
 ```powershell
-Test-NetConnection -ComputerName $VM1_PUB -Port 5000
+Test-NetConnection -ComputerName "52.91.99.132" -Port 5000
 ```
 *Sustentación breve:* `TcpTestSucceeded : True` certifica que el firewall de AWS autoriza el tráfico entrante desde Internet.
 
 Paso 6.2 — En Windows (Terminal 4): Ejecutar el script automatizado de auditoría en PowerShell:
 ```powershell
-Set-Location "d:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Practica11"; .\scripts\test_api_from_host.ps1 -PublicIp $VM1_PUB -Port 5000
+Set-Location "d:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Practica11"; .\scripts\test_api_from_host.ps1 -PublicIp "52.91.99.132" -Port 5000
 ```
 *Sustentación breve:* La suite en PowerShell ejecuta las aserciones de creación, modificación y borrado de productos directamente contra la IP pública real de AWS.
 
 Paso 6.3 — En Windows (Terminal 4): Abrir en el navegador la landing page interactiva con IMDSv2:
 ```powershell
-Start-Process "http://${VM1_PUB}/"
+Start-Process "http://52.91.99.132/"
 ```
 *Sustentación breve:* Mostramos la interfaz web Glassmorphism con el ID de la instancia de AWS y pulsamos **"Consultar Catálogo"** para realizar una petición AJAX en vivo.
 
 Paso 6.4 — En Windows (Terminal 4): Abrir en el navegador el JSON nativo de productos:
 ```powershell
-Start-Process "http://${VM1_PUB}:5000/api/products"
+Start-Process "http://52.91.99.132:5000/api/products"
 ```
 *Sustentación breve:* Visualización directa de los datos en formato JSON desde cualquier cliente web.
 

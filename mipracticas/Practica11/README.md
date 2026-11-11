@@ -388,11 +388,11 @@ Siguiendo exactamente el procedimiento demostrado en el video:
 4. Conectarse a cada máquina usando su DNS público o su IP pública:
    * **Terminal para VM1:**
      ```bash
-     ssh -i test-ssh.pem ubuntu@<IP_PUBLICA_VM1>
+     ssh -i test-ssh.pem ubuntu@52.91.99.132
      ```
    * **Terminal para VM2 (abrir otra ventana):**
      ```bash
-     ssh -i test-ssh.pem ubuntu@<IP_PUBLICA_VM2>
+     ssh -i test-ssh.pem ubuntu@54.221.25.113
      ```
 
 ---
@@ -432,11 +432,11 @@ curl localhost
 #### 1. Demostración del Fallo:
 * Desde la terminal de **VM2**, intentar consultar el servidor web de VM1 usando su IP privada:
   ```bash
-  curl --max-time 5 http://<IP_PRIVADA_VM1>
+  curl --max-time 5 http://172.31.16.58
   ```
   *Resultado:* El comando queda bloqueado y finaliza con `Connection timed out` tras 5 segundos.
 * Desde el navegador del PC anfitrión (Windows), intentar acceder a la IP pública de VM1:
-  `http://<IP_PUBLICA_VM1>`
+  `http://52.91.99.132`
   *Resultado:* El navegador muestra *"No se puede acceder a este sitio"* / *"Tiempo de espera agotado"*.
 
 *Explicación:* El Security Group `launch-wizard-1` solo contiene la regla para el puerto 22 (SSH). Todo el tráfico entrante dirigido al puerto 80 es descartado por el hipervisor de AWS antes de tocar el sistema operativo.
@@ -454,10 +454,10 @@ curl localhost
 #### 3. Comprobación del Éxito:
 * Repetir desde **VM2**:
   ```bash
-  curl http://<IP_PRIVADA_VM1>
+  curl http://172.31.16.58
   ```
   *Resultado:* Responde inmediatamente el HTML `<h1>It works!</h1>` de Apache.
-* Refrescar en el navegador del PC anfitrión `http://<IP_PUBLICA_VM1>`.
+* Refrescar en el navegador del PC anfitrión `http://52.91.99.132`.
   *Resultado:* Carga exitosamente la página oficial de bienvenida de Apache Ubuntu.
 
 ---
@@ -467,11 +467,11 @@ curl localhost
 #### 1. Demostración del Fallo:
 * Desde **VM1** hacer ping a VM2:
   ```bash
-  ping -c 3 -W 2 <IP_PRIVADA_VM2>
+  ping -c 3 -W 2 172.31.23.119
   ```
 * Desde **VM2** hacer ping a VM1:
   ```bash
-  ping -c 3 -W 2 <IP_PRIVADA_VM1>
+  ping -c 3 -W 2 172.31.16.58
   ```
   *Resultado:* En ambos sentidos se reporta `100% packet loss` (paquetes perdidos). El protocolo ICMP no utiliza puertos TCP/UDP, por lo que las reglas anteriores no lo cubren.
 
@@ -486,7 +486,8 @@ curl localhost
 #### 3. Comprobación del Éxito:
 * Repetir el ping en ambos sentidos:
   ```bash
-  ping -c 3 <IP_PRIVADA_DESTINO>
+  ping -c 3 172.31.23.119   # Desde VM1 hacia VM2
+  ping -c 3 172.31.16.58    # Desde VM2 hacia VM1
   ```
   *Resultado:* Respuestas inmediatas con `0% packet loss` y tiempos de respuesta de entre 0.2 ms y 0.5 ms.
 
@@ -527,17 +528,17 @@ TMP=$(mktemp -d) && git clone --depth 1 --filter=blob:none --sparse https://gith
 
 Ejecutar auditoría hacia el puerto nativo 5000 usando la **IP privada** de VM1:
 ```bash
-~/scripts/test_api_from_vm2.sh <IP_PRIVADA_VM1> 5000
+~/scripts/test_api_from_vm2.sh 172.31.16.58 5000
 ```
 
 Ejecutar auditoría hacia el puerto nativo 5000 usando la **IP pública** de VM1:
 ```bash
-~/scripts/test_api_from_vm2.sh <IP_PUBLICA_VM1> 5000
+~/scripts/test_api_from_vm2.sh 52.91.99.132 5000
 ```
 
 Ejecutar auditoría a través del **proxy inverso de Apache (Puerto 80)**:
 ```bash
-~/scripts/test_api_from_vm2.sh <IP_PRIVADA_VM1> 80
+~/scripts/test_api_from_vm2.sh 172.31.16.58 80
 ```
 
 *Comportamiento verificado:* El script ejecuta secuencialmente:
@@ -556,19 +557,19 @@ Desde la máquina anfitriona Windows (fuera de la red de AWS):
 
 #### 1. Verificación del Socket TCP y Curl Nativo:
 ```powershell
-Test-NetConnection -ComputerName "<IP_PUBLICA_VM1>" -Port 5000
-curl.exe -s "http://<IP_PUBLICA_VM1>:5000/api/health"
+Test-NetConnection -ComputerName "52.91.99.132" -Port 5000
+curl.exe -s "http://52.91.99.132:5000/api/health"
 ```
 
 #### 2. Ejecución de la Suite Automatizada en PowerShell:
 ```powershell
 Set-Location "d:\Documentos\Practica_AmbienteDesarrollo\mipracticas\Practica11"
-.\scripts\test_api_from_host.ps1 -PublicIp "<IP_PUBLICA_VM1>" -Port 5000
+.\scripts\test_api_from_host.ps1 -PublicIp "52.91.99.132" -Port 5000
 ```
 
 #### 3. Validación Interactiva en Navegador Web:
-* Abrir `http://<IP_PUBLICA_VM1>/`: Carga el portal Glassmorphism con los metadatos de la instancia inyectados por IMDSv2. Al hacer clic en **"Consultar Catálogo"**, se ejecuta una llamada AJAX interna que lista los productos en tiempo real.
-* Abrir `http://<IP_PUBLICA_VM1>:5000/api/products`: Entrega directamente el JSON estructurado del catálogo.
+* Abrir `http://52.91.99.132/`: Carga el portal Glassmorphism con los metadatos de la instancia inyectados por IMDSv2. Al hacer clic en **"Consultar Catálogo"**, se ejecuta una llamada AJAX interna que lista los productos en tiempo real.
+* Abrir `http://52.91.99.132:5000/api/products`: Entrega directamente el JSON estructurado del catálogo.
 * *(Opcional)* Abrir la URL desde el navegador de un teléfono móvil conectado a datos móviles para evidenciar consumo desde cualquier red externa.
 
 ---
@@ -595,7 +596,7 @@ Siguiendo la política estricta de **cero evidencias sintéticas**, las capturas
 | `images/06_ping_falla_y_regla_icmp.png` | Consola mostrando fallo de ping en ambos sentidos y posterior éxito tras agregar la regla All ICMP - IPv4. | Pendiente de captura real |
 | `images/07_punto_4a_vm2_audit_curl.png` | Ejecución exitosa de `test_api_from_vm2.sh` desde VM2 hacia VM1 con todas las aserciones en PASS. | Pendiente de captura real |
 | `images/08_punto_4b_host_powershell.png` | Ejecución de `test_api_from_host.ps1` desde Windows PowerShell mostrando la validación CRUD completa contra la IP pública. | Pendiente de captura real |
-| `images/09_punto_4b_browser_landing.png` | Navegador web en Windows visualizando la landing page interactiva en `http://<IP_PUBLICA_VM1>/` con datos de IMDSv2. | Pendiente de captura real |
+| `images/09_punto_4b_browser_landing.png` | Navegador web en Windows visualizando la landing page interactiva en `http://52.91.99.132/` con datos de IMDSv2. | Pendiente de captura real |
 
 ---
 
